@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: colyseus_mongodb
+    restart: unless-stopped
+    ports:
+      - '27016:27017'
+    environment:
+      MONGO_INITDB_DATABASE: nestcolyseus
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - colyseus-network
+
+  redis:
+    image: redis:7
+    container_name: colyseus_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    networks:
+      - colyseus-network
+
+volumes:
+  redis_data:
+  mongo_data:
+
+networks:
+  colyseus-network:
+    driver: bridge
