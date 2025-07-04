@@ -5,7 +5,7 @@ export class Pet extends Schema {
   @type('string') ownerId: string = '';
   @type('number') x: number = 0;
   @type('number') y: number = 0;
-  @type('number') speed: number = 50;
+  @type('number') speed: number = 40;
   @type('string') currentActivity: string = 'walk';
   @type('number') hungerLevel: number = 100;
   @type('boolean') isChasing: boolean = false;
