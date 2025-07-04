@@ -25,6 +25,15 @@ export class GameRoom extends Room<GameRoomState> {
     }, 1000); // Update every second
 
     console.log('✅ Pet Simulator Room initialized successfully');
+
+    // Log initial state
+    this.logStateChange('ROOM_CREATED', {
+      roomId: this.roomId,
+      roomName: this.state.roomName,
+      maxClients: this.maxClients,
+    });
+
+    this.logCurrentState();
   }
 
   private setupMessageHandlers() {
@@ -57,6 +66,14 @@ export class GameRoom extends Room<GameRoomState> {
         pet.isChasing = false;
 
         this.state.pets.set(data.petId, pet);
+
+        this.logStateChange('PET_CREATED', {
+          petId: data.petId,
+          ownerId: client.sessionId,
+          ownerName: player.name,
+          position: { x: data.x, y: data.y },
+          petType: data.petType,
+        });
 
         // Broadcast pet creation to all players
         this.broadcast('pet-created', {
@@ -98,6 +115,14 @@ export class GameRoom extends Room<GameRoomState> {
         if (data.speed !== undefined) pet.speed = data.speed;
         if (data.x !== undefined) pet.x = data.x;
         if (data.y !== undefined) pet.y = data.y;
+
+        this.logStateChange('PET_ACTIVITY_UPDATED', {
+          petId: data.petId,
+          activity: data.activity,
+          speed: data.speed,
+          position: { x: data.x, y: data.y },
+          ownerId: pet.ownerId,
+        });
 
         // Broadcast to other players
         this.broadcast(
@@ -152,6 +177,16 @@ export class GameRoom extends Room<GameRoomState> {
           foodItem.price = data.price;
 
           player.foodInventory.set(data.foodId, foodItem);
+
+          this.logStateChange('FOOD_PURCHASED', {
+            playerId: client.sessionId,
+            playerName: player.name,
+            foodId: data.foodId,
+            quantity,
+            totalPrice,
+            newQuantity: foodItem.quantity,
+            playerTokens: player.tokens,
+          });
         }
 
         // Send response
@@ -160,12 +195,13 @@ export class GameRoom extends Room<GameRoomState> {
           foodId: data.foodId,
           quantity,
           totalPrice,
+          currentTokens: player.tokens, // Send current token count
           newInventory: success
             ? Array.from(player.foodInventory.values())
             : undefined,
           message: success
             ? `Đã mua thành công ${quantity}x ${data.foodId}`
-            : 'Không thể mua thức ăn',
+            : `Không đủ token để mua ${data.foodId}. Cần ${totalPrice}, có ${player.tokens}`,
           timestamp: Date.now(),
         });
 
@@ -231,10 +267,28 @@ export class GameRoom extends Room<GameRoomState> {
 
         this.state.droppedFood.set(droppedFoodId, droppedFood);
 
+        this.logStateChange('FOOD_DROPPED', {
+          droppedFoodId,
+          foodType: data.foodId,
+          position: { x: data.x, y: data.y },
+          droppedBy: client.sessionId,
+          playerName: player.name,
+          remainingInventory: foodItem ? foodItem.quantity : 0,
+        });
+
         // Auto-despawn after 20 seconds
         this.clock.setTimeout(() => {
           if (this.state.droppedFood.has(droppedFoodId)) {
             this.state.droppedFood.delete(droppedFoodId);
+
+            this.logStateChange('FOOD_DESPAWNED', {
+              droppedFoodId,
+              foodType: data.foodId,
+              position: { x: data.x, y: data.y },
+              reason: 'timeout',
+              despawnAfterSeconds: 20,
+            });
+
             this.broadcast('food-despawned', {
               foodId: droppedFoodId,
               timestamp: Date.now(),
@@ -282,6 +336,14 @@ export class GameRoom extends Room<GameRoomState> {
         if (this.state.droppedFood.has(data.foodId)) {
           this.state.droppedFood.delete(data.foodId);
 
+          this.logStateChange('FOOD_CONSUMED', {
+            foodId: data.foodId,
+            petId: data.petId,
+            consumedBy: client.sessionId,
+            petHungerBefore: data.hungerBefore,
+            petHungerAfter: pet.hungerLevel,
+          });
+
           this.broadcast('food-consumed', {
             foodId: data.foodId,
             petId: data.petId,
@@ -325,6 +387,14 @@ export class GameRoom extends Room<GameRoomState> {
         pet.targetY = data.targetY;
         pet.isChasing = data.isChasing;
         pet.currentActivity = data.isChasing ? 'chase' : 'walk';
+
+        this.logStateChange('PET_CHASE_UPDATED', {
+          petId: data.petId,
+          targetPosition: { x: data.targetX, y: data.targetY },
+          isChasing: data.isChasing,
+          activity: pet.currentActivity,
+          ownerId: pet.ownerId,
+        });
 
         // Broadcast to other players
         this.broadcast(
@@ -401,6 +471,30 @@ export class GameRoom extends Room<GameRoomState> {
       });
     });
 
+    // Handle player state requests
+    this.onMessage('request-player-state', (client) => {
+      console.log(`👤 Player state requested by ${client.sessionId}`);
+
+      const player = this.state.players.get(client.sessionId);
+      if (player) {
+        // Send current player state to client
+        client.send('player-state-sync', {
+          playerId: client.sessionId,
+          tokens: player.tokens,
+          isOnline: player.isOnline,
+          inventory: Object.fromEntries(player.foodInventory.entries()),
+          timestamp: Date.now(),
+        });
+
+        this.logStateChange('PLAYER_STATE_REQUESTED', {
+          playerId: client.sessionId,
+          playerName: player.name,
+          tokens: player.tokens,
+          inventorySize: player.foodInventory.size,
+        });
+      }
+    });
+
     console.log('✅ Message handlers setup complete');
   }
 
@@ -409,14 +503,39 @@ export class GameRoom extends Room<GameRoomState> {
     foodId: string,
     price: number,
   ): boolean {
-    // Add your currency validation logic here
-    // For now, always return true
-    return true;
+    // Check if player has enough tokens
+    if (player.tokens >= price) {
+      // Deduct tokens from player
+      player.tokens -= price;
+
+      this.logStateChange('TOKENS_DEDUCTED', {
+        playerId: player.sessionId,
+        playerName: player.name,
+        foodId,
+        price,
+        previousTokens: player.tokens + price,
+        newTokens: player.tokens,
+      });
+
+      return true;
+    } else {
+      this.logStateChange('PURCHASE_FAILED_INSUFFICIENT_TOKENS', {
+        playerId: player.sessionId,
+        playerName: player.name,
+        foodId,
+        price,
+        currentTokens: player.tokens,
+        needed: price - player.tokens,
+      });
+
+      return false;
+    }
   }
 
   private updateGameLogic() {
     // Update pet hunger levels
     const now = Date.now();
+    let hungerUpdatesCount = 0;
 
     this.state.pets.forEach((pet) => {
       const lastUpdate = pet.lastHungerUpdate || now;
@@ -425,8 +544,20 @@ export class GameRoom extends Room<GameRoomState> {
       if (timeDiff >= 1) {
         // Update every second
         const hungerDecrease = 0.5; // 0.5% per second
+        const previousHunger = pet.hungerLevel;
         pet.hungerLevel = Math.max(0, pet.hungerLevel - hungerDecrease);
         pet.lastHungerUpdate = now;
+        hungerUpdatesCount++;
+
+        // Log significant hunger changes
+        if (Math.floor(previousHunger) !== Math.floor(pet.hungerLevel)) {
+          this.logStateChange('PET_HUNGER_DECREASED', {
+            petId: pet.id,
+            previousHunger,
+            newHunger: pet.hungerLevel,
+            timeDiff,
+          });
+        }
 
         // Broadcast hunger update if significant change
         if (Math.floor(pet.hungerLevel) % 5 === 0) {
@@ -438,7 +569,16 @@ export class GameRoom extends Room<GameRoomState> {
         }
       }
     });
+
+    // Log periodic state summary (every 30 seconds)
+    if (!this.lastStateSummary || now - this.lastStateSummary > 30000) {
+      console.log(`⏰ [PERIODIC STATE SUMMARY] ${new Date().toISOString()}`);
+      this.logCurrentState();
+      this.lastStateSummary = now;
+    }
   }
+
+  private lastStateSummary: number = 0;
 
   onJoin(client: Client, options: any) {
     console.log(`👋 Player joined: ${client.sessionId}`);
@@ -452,6 +592,15 @@ export class GameRoom extends Room<GameRoomState> {
     // Add to room state
     this.state.players.set(client.sessionId, player);
     this.state.playerCount = this.state.players.size;
+
+    this.logStateChange('PLAYER_JOINED', {
+      sessionId: client.sessionId,
+      playerName: player.name,
+      totalPlayers: this.state.playerCount,
+    });
+
+    // Log current state after player joins
+    this.logCurrentState();
 
     // Send welcome message
     client.send('welcome', {
@@ -497,6 +646,16 @@ export class GameRoom extends Room<GameRoomState> {
       this.state.players.delete(client.sessionId);
       this.state.playerCount = this.state.players.size;
 
+      this.logStateChange('PLAYER_LEFT', {
+        sessionId: client.sessionId,
+        playerName: player.name,
+        totalPlayers: this.state.playerCount,
+        consented,
+      });
+
+      // Log current state after player leaves
+      this.logCurrentState();
+
       // Notify remaining players
       this.broadcast('player-left', {
         player: {
@@ -515,5 +674,64 @@ export class GameRoom extends Room<GameRoomState> {
   onDispose() {
     console.log(`🗑️ Game Room disposed: ${this.roomId}`);
     this.state.isActive = false;
+
+    this.logStateChange('ROOM_DISPOSED', {
+      roomId: this.roomId,
+      finalPlayerCount: this.state.playerCount,
+      finalPetCount: this.state.pets.size,
+      finalDroppedFoodCount: this.state.droppedFood.size,
+    });
+
+    // Final state log
+    console.log(`📊 [FINAL STATE] Room ${this.roomId} before disposal:`);
+    this.logCurrentState();
+  }
+
+  private logStateChange(action: string, details: any) {
+    console.log(`🔄 [STATE CHANGE] ${action}:`, {
+      timestamp: new Date().toISOString(),
+      roomId: this.roomId,
+      playerCount: this.state.playerCount,
+      petCount: this.state.pets.size,
+      droppedFoodCount: this.state.droppedFood.size,
+      details,
+    });
+  }
+
+  private logCurrentState() {
+    console.log(`📊 [CURRENT STATE] Room ${this.roomId}:`, {
+      timestamp: new Date().toISOString(),
+      roomName: this.state.roomName,
+      isActive: this.state.isActive,
+      playerCount: this.state.playerCount,
+      players: Array.from(this.state.players.entries()).map(([id, player]) => ({
+        sessionId: id,
+        name: player.name,
+        tokens: player.tokens,
+        isOnline: player.isOnline,
+        foodInventoryCount: player.foodInventory.size,
+      })),
+      pets: Array.from(this.state.pets.entries()).map(([id, pet]) => ({
+        id,
+        ownerId: pet.ownerId,
+        x: pet.x,
+        y: pet.y,
+        hungerLevel: pet.hungerLevel,
+        currentActivity: pet.currentActivity,
+        isChasing: pet.isChasing,
+        lastFedAt: pet.lastFedAt,
+      })),
+      droppedFood: Array.from(this.state.droppedFood.entries()).map(
+        ([id, food]) => ({
+          id,
+          foodType: food.foodType,
+          x: food.x,
+          y: food.y,
+          quantity: food.quantity,
+          droppedBy: food.droppedBy,
+          droppedAt: food.droppedAt,
+        }),
+      ),
+    });
   }
 }
