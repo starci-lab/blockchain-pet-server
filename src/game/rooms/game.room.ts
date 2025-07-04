@@ -1,10 +1,5 @@
 import { Room, Client } from 'colyseus';
-import {
-  GameRoomState,
-  Player,
-  Pet,
-  FoodItem,
-} from '../schemas/game-room.schema';
+import { GameRoomState, Player, Pet } from '../schemas/game-room.schema';
 import { PetHandlers } from '../handlers/PetHandlers';
 import { FoodHandlers } from '../handlers/FoodHandlers';
 import { PlayerHandlers } from '../handlers/PlayerHandlers';
@@ -45,14 +40,15 @@ export class GameRoom extends Room<GameRoomState> {
   private setupMessageHandlers() {
     // Pet handlers
     this.onMessage('create-pet', PetHandlers.createPet(this));
-    this.onMessage('pet-activity', PetHandlers.updateActivity(this));
-    this.onMessage('pet-chase', PetHandlers.handleChase(this));
     this.onMessage('remove-pet', PetHandlers.removePet(this));
+    this.onMessage('feed-pet', PetHandlers.feedPet(this));
+    this.onMessage('play-pet', PetHandlers.playWithPet(this));
+    this.onMessage('clean-pet', PetHandlers.cleanPet(this));
 
-    // Food handlers
-    this.onMessage('food-purchase', FoodHandlers.purchaseFood(this));
-    this.onMessage('food-drop', FoodHandlers.dropFood(this));
-    this.onMessage('pet-feed', FoodHandlers.feedPet(this));
+    // Store/Item handlers
+    this.onMessage('purchase-item', FoodHandlers.purchaseItem(this));
+    this.onMessage('get-store-catalog', FoodHandlers.getStoreCatalog(this));
+    this.onMessage('get-inventory', FoodHandlers.getInventory(this));
 
     // Player handlers
     this.onMessage(
@@ -68,8 +64,8 @@ export class GameRoom extends Room<GameRoomState> {
   }
 
   private updateGameLogic() {
-    // Update pet hunger levels using service
-    PetService.updateHungerLevels(this.state.pets);
+    // Update pet stats over time (hunger, happiness, cleanliness decay)
+    PetService.updatePetStats(this.state.pets);
 
     // Log periodic state summary
     this.loggingService.periodicStateSummary();

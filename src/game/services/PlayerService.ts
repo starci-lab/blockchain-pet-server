@@ -1,4 +1,4 @@
-import { Player, FoodItem } from '../schemas/game-room.schema';
+import { Player, InventoryItem } from '../schemas/game-room.schema';
 import { GAME_CONFIG } from '../config/GameConfig';
 
 export class PlayerService {
@@ -6,69 +6,59 @@ export class PlayerService {
     const player = new Player();
     player.sessionId = sessionId;
     player.name = name || `Player_${sessionId.substring(0, 6)}`;
-    player.isOnline = true;
     player.tokens = GAME_CONFIG.ECONOMY.INITIAL_TOKENS;
+    player.totalPetsOwned = 0;
 
-    // Add starter food items
-    const starterApple = new FoodItem();
-    starterApple.id = 'apple';
-    starterApple.quantity = GAME_CONFIG.ECONOMY.STARTER_FOOD_QUANTITY;
-    starterApple.price = 3;
-    player.foodInventory.set('apple', starterApple);
+    // Add starter items to inventory
+    const starterApple = new InventoryItem();
+    starterApple.itemType = 'food';
+    starterApple.itemName = 'apple';
+    starterApple.quantity = GAME_CONFIG.ECONOMY.STARTER_FOOD_QUANTITY || 3;
+    starterApple.totalPurchased = starterApple.quantity;
+    player.inventory.set('food_apple', starterApple);
+
+    console.log(
+      `👤 Created new player: ${player.name} with ${player.tokens} tokens and ${starterApple.quantity} starter apples`,
+    );
 
     return player;
   }
 
-  static validateFoodPurchase(
-    player: Player,
-    foodId: string,
-    totalPrice: number,
-  ): boolean {
-    return player.tokens >= totalPrice;
+  static addTokens(player: Player, amount: number): void {
+    player.tokens += amount;
+    console.log(
+      `💰 Added ${amount} tokens to ${player.name}. New balance: ${player.tokens}`,
+    );
   }
 
-  static processFoodPurchase(
-    player: Player,
-    foodId: string,
-    price: number,
-    quantity: number,
-  ): { success: boolean; totalPrice: number } {
-    const totalPrice = price * quantity;
-
-    if (!this.validateFoodPurchase(player, foodId, totalPrice)) {
-      return { success: false, totalPrice };
-    }
-
-    // Deduct tokens
-    player.tokens -= totalPrice;
-
-    // Add to inventory
-    const existingFood = player.foodInventory.get(foodId);
-    const newQuantity = (existingFood?.quantity || 0) + quantity;
-
-    const foodItem = new FoodItem();
-    foodItem.id = foodId;
-    foodItem.quantity = newQuantity;
-    foodItem.price = price;
-
-    player.foodInventory.set(foodId, foodItem);
-
-    return { success: true, totalPrice };
-  }
-
-  static consumeFoodFromInventory(player: Player, foodId: string): boolean {
-    const foodItem = player.foodInventory.get(foodId);
-    if (!foodItem || foodItem.quantity <= 0) {
+  static deductTokens(player: Player, amount: number): boolean {
+    if (player.tokens < amount) {
+      console.log(
+        `❌ ${player.name} doesn't have enough tokens. Has: ${player.tokens}, needs: ${amount}`,
+      );
       return false;
     }
 
-    // Remove from inventory
-    if (foodItem.quantity > 1) {
-      foodItem.quantity -= 1;
-    } else {
-      player.foodInventory.delete(foodId);
-    }
-
+    player.tokens -= amount;
+    console.log(
+      `💰 Deducted ${amount} tokens from ${player.name}. New balance: ${player.tokens}`,
+    );
     return true;
+  }
+
+  static getPlayerSummary(player: Player): any {
+    const inventoryItems = Array.from(player.inventory.values());
+
+    return {
+      sessionId: player.sessionId,
+      name: player.name,
+      tokens: player.tokens,
+      totalPetsOwned: player.totalPetsOwned,
+      inventoryCount: inventoryItems.length,
+      totalItemsOwned: inventoryItems.reduce(
+        (sum, item) => sum + item.quantity,
+        0,
+      ),
+    };
   }
 }

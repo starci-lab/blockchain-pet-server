@@ -38,7 +38,7 @@ export class PlayerHandlers {
           playerId: client.sessionId,
           playerName: player.name,
           tokens: player.tokens,
-          inventorySize: player.foodInventory.size,
+          // inventorySize: player.foodInventory.length,
           petCount: playerPets.length,
         });
       }

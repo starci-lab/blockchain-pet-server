@@ -1,32 +1,30 @@
-import { FoodItem } from '../schemas/game-room.schema';
 import { GAME_CONFIG } from '../config/GameConfig';
 
+// Simplified FoodService for the new inventory system
 export class FoodService {
-  static createDroppedFood(
-    foodId: string,
-    x: number,
-    y: number,
-    droppedBy: string,
-  ): { id: string; food: FoodItem } {
-    const droppedFoodId = `food_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    const droppedFood = new FoodItem();
-    droppedFood.id = droppedFoodId;
-    droppedFood.foodType = foodId;
-    droppedFood.x = x;
-    droppedFood.y = y;
-    droppedFood.quantity = 1;
-    droppedFood.droppedBy = droppedBy;
-    droppedFood.droppedAt = Date.now();
-
-    return { id: droppedFoodId, food: droppedFood };
-  }
-
-  static getDespawnTime(): number {
-    return GAME_CONFIG.FOOD.DESPAWN_TIME;
-  }
-
+  // Get food items configuration (price, nutrition values, etc.)
   static getFoodItems() {
-    return GAME_CONFIG.FOOD.ITEMS;
+    return {
+      hamburger: { price: 10, nutrition: 20, name: 'Hamburger' },
+      apple: { price: 5, nutrition: 10, name: 'Apple' },
+      fish: { price: 15, nutrition: 25, name: 'Fish' },
+    };
+  }
+
+  // Get nutrition value for a food type
+  static getFoodNutrition(foodType: string): number {
+    const foodItems = this.getFoodItems();
+    return (foodItems as any)[foodType]?.nutrition || 10;
+  }
+
+  // Get food price
+  static getFoodPrice(foodType: string): number {
+    const foodItems = this.getFoodItems();
+    return (foodItems as any)[foodType]?.price || 5;
+  }
+
+  // Get all available food types
+  static getAvailableFoodTypes(): string[] {
+    return Object.keys(this.getFoodItems());
   }
 }

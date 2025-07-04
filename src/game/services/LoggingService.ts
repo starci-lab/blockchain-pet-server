@@ -15,7 +15,6 @@ export class LoggingService {
       roomId: this.room.roomId,
       playerCount: this.room.state.playerCount,
       petCount: this.room.state.pets.size,
-      droppedFoodCount: this.room.state.droppedFood.size,
       details,
     });
   }
@@ -24,38 +23,23 @@ export class LoggingService {
     console.log(`📊 [CURRENT STATE] Room ${this.room.roomId}:`, {
       timestamp: new Date().toISOString(),
       roomName: this.room.state.roomName,
-      isActive: this.room.state.isActive,
       playerCount: this.room.state.playerCount,
       players: Array.from(this.room.state.players.entries()).map(
         ([id, player]) => ({
           sessionId: id,
           name: player.name,
           tokens: player.tokens,
-          isOnline: player.isOnline,
-          foodInventoryCount: player.foodInventory.size,
         }),
       ),
       pets: Array.from(this.room.state.pets.entries()).map(([id, pet]) => ({
         id,
         ownerId: pet.ownerId,
-        x: pet.x,
-        y: pet.y,
-        hungerLevel: pet.hungerLevel,
-        currentActivity: pet.currentActivity,
-        isChasing: pet.isChasing,
-        lastFedAt: pet.lastFedAt,
+        petType: pet.petType,
+        hunger: pet.hunger,
+        happiness: pet.happiness,
+        cleanliness: pet.cleanliness,
+        lastUpdated: pet.lastUpdated,
       })),
-      droppedFood: Array.from(this.room.state.droppedFood.entries()).map(
-        ([id, food]) => ({
-          id,
-          foodType: food.foodType,
-          x: food.x,
-          y: food.y,
-          quantity: food.quantity,
-          droppedBy: food.droppedBy,
-          droppedAt: food.droppedAt,
-        }),
-      ),
     });
   }
 
@@ -87,7 +71,8 @@ export class LoggingService {
       playerName: player.name,
       totalPlayers: this.room.state.playerCount,
       starterTokens: player.tokens,
-      starterFood: player.foodInventory.size,
+      totalPetsOwned: player.totalPetsOwned,
+      inventoryItems: player.inventory.size,
     });
 
     this.logCurrentState();
@@ -107,13 +92,11 @@ export class LoggingService {
 
   logRoomDisposed() {
     console.log(`🗑️ Game Room disposed: ${this.room.roomId}`);
-    this.room.state.isActive = false;
 
     this.logStateChange('ROOM_DISPOSED', {
       roomId: this.room.roomId,
       finalPlayerCount: this.room.state.playerCount,
       finalPetCount: this.room.state.pets.size,
-      finalDroppedFoodCount: this.room.state.droppedFood.size,
     });
 
     console.log(`📊 [FINAL STATE] Room ${this.room.roomId} before disposal:`);

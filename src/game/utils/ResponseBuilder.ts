@@ -1,36 +1,31 @@
-import { Player, Pet, FoodItem } from '../schemas/game-room.schema';
-import { PetStateData } from '../types/MessageTypes';
+import { Player, Pet, InventoryItem } from '../schemas/game-room.schema';
 import { GAME_CONFIG } from '../config/GameConfig';
 
 export class ResponseBuilder {
-  static foodPurchaseResponse(
+  // Simplified purchase response for new inventory system
+  static purchaseResponse(
     success: boolean,
     data: {
-      foodId: string;
+      itemType: string;
+      itemName: string;
       quantity: number;
       totalPrice: number;
       currentTokens: number;
-      newInventory?: FoodItem[];
+      inventory?: any;
     },
   ) {
     return {
       success,
-      foodId: data.foodId,
+      itemType: data.itemType,
+      itemName: data.itemName,
       quantity: data.quantity,
       totalPrice: data.totalPrice,
       currentTokens: data.currentTokens,
-      newInventory: success ? data.newInventory : undefined,
+      inventory: success ? data.inventory : undefined,
       message: success
-        ? `Đã mua thành công ${data.quantity}x ${data.foodId}`
-        : `Không đủ token để mua ${data.foodId}. Cần ${data.totalPrice}, có ${data.currentTokens}`,
+        ? `Successfully purchased ${data.quantity}x ${data.itemName}`
+        : `Not enough tokens to buy ${data.itemName}. Need ${data.totalPrice}, have ${data.currentTokens}`,
       timestamp: Date.now(),
-    };
-  }
-
-  static foodDropResponse(success: boolean, error?: string) {
-    return {
-      success,
-      error: error || undefined,
     };
   }
 
@@ -38,46 +33,49 @@ export class ResponseBuilder {
     return {
       playerId: player.sessionId,
       tokens: player.tokens,
-      isOnline: player.isOnline,
-      inventory: Object.fromEntries(player.foodInventory.entries()),
+      totalPetsOwned: player.totalPetsOwned,
+      inventory: Object.fromEntries(player.inventory.entries()),
       timestamp: Date.now(),
     };
   }
 
   static petsStateSync(pets: Pet[]) {
     return {
-      pets: pets.map(
-        (pet) =>
-          ({
-            id: pet.id,
-            ownerId: pet.ownerId,
-            x: pet.x,
-            y: pet.y,
-            hungerLevel: pet.hungerLevel,
-            currentActivity: pet.currentActivity,
-            isChasing: pet.isChasing,
-            speed: pet.speed,
-            lastFedAt: pet.lastFedAt,
-            lastHungerUpdate: pet.lastHungerUpdate,
-          }) as PetStateData,
-      ),
+      pets: pets.map((pet) => ({
+        id: pet.id,
+        ownerId: pet.ownerId,
+        petType: pet.petType,
+        hunger: pet.hunger,
+        happiness: pet.happiness,
+        cleanliness: pet.cleanliness,
+        lastUpdated: pet.lastUpdated,
+      })),
       timestamp: Date.now(),
     };
   }
 
   static gameConfig() {
     return {
-      food: {
-        items: GAME_CONFIG.FOOD.ITEMS,
-      },
       pets: {
-        initialHunger: GAME_CONFIG.PETS.INITIAL_HUNGER,
-        hungerDecreaseRate: GAME_CONFIG.PETS.HUNGER_DECREASE_RATE,
-        movementSpeed: GAME_CONFIG.PETS.DEFAULT_SPEED,
-        despawnTime: GAME_CONFIG.FOOD.DESPAWN_TIME,
+        defaultType: GAME_CONFIG.PETS.DEFAULT_TYPE,
       },
       economy: {
         initialTokens: GAME_CONFIG.ECONOMY.INITIAL_TOKENS,
+      },
+      store: {
+        food: {
+          hamburger: { price: 10, name: 'Hamburger' },
+          apple: { price: 5, name: 'Apple' },
+          fish: { price: 15, name: 'Fish' },
+        },
+        toys: {
+          ball: { price: 20, name: 'Ball' },
+          rope: { price: 15, name: 'Rope' },
+        },
+        cleaning: {
+          soap: { price: 8, name: 'Soap' },
+          brush: { price: 12, name: 'Brush' },
+        },
       },
       timestamp: Date.now(),
     };
@@ -88,6 +86,7 @@ export class ResponseBuilder {
       message: `Welcome ${playerName}!`,
       roomId,
       roomName,
+      timestamp: Date.now(),
     };
   }
 
@@ -97,6 +96,42 @@ export class ResponseBuilder {
       petId,
       error: error || undefined,
       message: success ? `Pet ${petId} removed successfully` : error,
+      timestamp: Date.now(),
+    };
+  }
+
+  // Pet action responses
+  static petActionResponse(
+    success: boolean,
+    action: string,
+    petId: string,
+    petStats?: any,
+    error?: string,
+  ) {
+    return {
+      success,
+      action,
+      petId,
+      petStats: success ? petStats : undefined,
+      error: error || undefined,
+      message: success ? `${action} successful` : error,
+      timestamp: Date.now(),
+    };
+  }
+
+  // Inventory response
+  static inventoryResponse(
+    success: boolean,
+    inventory?: any,
+    tokens?: number,
+    error?: string,
+  ) {
+    return {
+      success,
+      inventory: success ? inventory : undefined,
+      tokens: success ? tokens : undefined,
+      error: error || undefined,
+      timestamp: Date.now(),
     };
   }
 }
