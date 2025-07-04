@@ -7,7 +7,7 @@ import {
 } from '../schemas/game-room.schema';
 
 export class GameRoom extends Room<GameRoomState> {
-  maxClients = 10;
+  maxClients = 1; // Single player only
 
   onCreate(options: any) {
     console.log('🎮 Pet Simulator Room Created:', this.roomId);
@@ -22,7 +22,7 @@ export class GameRoom extends Room<GameRoomState> {
     // Initialize game timer for hunger decrease
     this.setSimulationInterval(() => {
       this.updateGameLogic();
-    }, 1000); // Update every second
+    }, 1000);
 
     console.log('✅ Pet Simulator Room initialized successfully');
 
@@ -75,21 +75,7 @@ export class GameRoom extends Room<GameRoomState> {
           petType: data.petType,
         });
 
-        // Broadcast pet creation to all players
-        this.broadcast('pet-created', {
-          pet: {
-            id: pet.id,
-            ownerId: pet.ownerId,
-            ownerName: player.name,
-            x: pet.x,
-            y: pet.y,
-            petType: pet.petType,
-            hungerLevel: pet.hungerLevel,
-            currentActivity: pet.currentActivity,
-          },
-          timestamp: Date.now(),
-        });
-
+        // Log pet creation (no need to broadcast in single-player)
         console.log(`✅ Pet ${data.petId} created for ${player.name}`);
       },
     );
@@ -116,6 +102,7 @@ export class GameRoom extends Room<GameRoomState> {
         if (data.x !== undefined) pet.x = data.x;
         if (data.y !== undefined) pet.y = data.y;
 
+        // Log activity update (no need to broadcast in single-player)
         this.logStateChange('PET_ACTIVITY_UPDATED', {
           petId: data.petId,
           activity: data.activity,
@@ -123,20 +110,6 @@ export class GameRoom extends Room<GameRoomState> {
           position: { x: data.x, y: data.y },
           ownerId: pet.ownerId,
         });
-
-        // Broadcast to other players
-        this.broadcast(
-          'pet-activity-updated',
-          {
-            petId: data.petId,
-            activity: data.activity,
-            speed: data.speed,
-            x: data.x,
-            y: data.y,
-            timestamp: Date.now(),
-          },
-          { except: client },
-        );
       },
     );
 
@@ -206,18 +179,9 @@ export class GameRoom extends Room<GameRoomState> {
         });
 
         if (success) {
-          // Broadcast to other players
-          this.broadcast(
-            'player-purchased-food',
-            {
-              playerId: client.sessionId,
-              playerName: player.name,
-              foodId: data.foodId,
-              quantity,
-              totalPrice,
-              timestamp: Date.now(),
-            },
-            { except: client },
+          // Log successful purchase (no need to broadcast in single-player)
+          console.log(
+            `✅ ${player.name} purchased ${quantity}x ${data.foodId} for ${totalPrice} tokens`,
           );
         }
       },
@@ -264,6 +228,7 @@ export class GameRoom extends Room<GameRoomState> {
         droppedFood.quantity = 1;
         droppedFood.droppedBy = client.sessionId;
         droppedFood.droppedAt = Date.now();
+        console.log('drop food', droppedFood);
 
         this.state.droppedFood.set(droppedFoodId, droppedFood);
 
@@ -289,24 +254,12 @@ export class GameRoom extends Room<GameRoomState> {
               despawnAfterSeconds: 20,
             });
 
-            this.broadcast('food-despawned', {
-              foodId: droppedFoodId,
-              timestamp: Date.now(),
-            });
+            // Log despawn (no need to broadcast in single-player)
+            console.log(`🗑️ Food ${droppedFoodId} despawned after 20 seconds`);
           }
         }, 20000);
 
-        // Broadcast food drop to all players
-        this.broadcast('food-dropped', {
-          foodId: droppedFoodId,
-          foodType: data.foodId,
-          x: data.x,
-          y: data.y,
-          droppedBy: client.sessionId,
-          playerName: player.name,
-          timestamp: Date.now(),
-        });
-
+        // Log food drop (no need to broadcast in single-player)
         console.log(
           `🍔 ${player.name} dropped ${data.foodId} at (${data.x}, ${data.y})`,
         );
@@ -343,25 +296,9 @@ export class GameRoom extends Room<GameRoomState> {
             petHungerBefore: data.hungerBefore,
             petHungerAfter: pet.hungerLevel,
           });
-
-          this.broadcast('food-consumed', {
-            foodId: data.foodId,
-            petId: data.petId,
-            consumedBy: client.sessionId,
-            timestamp: Date.now(),
-          });
         }
 
-        // Broadcast feeding event
-        this.broadcast('pet-fed', {
-          petId: data.petId,
-          foodType: data.foodId,
-          hungerBefore: data.hungerBefore,
-          hungerAfter: pet.hungerLevel,
-          fedBy: client.sessionId,
-          timestamp: Date.now(),
-        });
-
+        // Log feeding event (no need to broadcast in single-player)
         console.log(
           `🍽️ Pet ${data.petId} fed with ${data.foodId}, hunger: ${data.hungerBefore} → ${pet.hungerLevel}`,
         );
@@ -388,6 +325,7 @@ export class GameRoom extends Room<GameRoomState> {
         pet.isChasing = data.isChasing;
         pet.currentActivity = data.isChasing ? 'chase' : 'walk';
 
+        // Log chase update (no need to broadcast in single-player)
         this.logStateChange('PET_CHASE_UPDATED', {
           petId: data.petId,
           targetPosition: { x: data.targetX, y: data.targetY },
@@ -395,38 +333,8 @@ export class GameRoom extends Room<GameRoomState> {
           activity: pet.currentActivity,
           ownerId: pet.ownerId,
         });
-
-        // Broadcast to other players
-        this.broadcast(
-          'pet-chase-updated',
-          {
-            petId: data.petId,
-            targetX: data.targetX,
-            targetY: data.targetY,
-            isChasing: data.isChasing,
-            activity: pet.currentActivity,
-            timestamp: Date.now(),
-          },
-          { except: client },
-        );
       },
     );
-
-    // Handle chat messages
-    this.onMessage('chat', (client, data: { message: string }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
-
-      console.log(`💬 Chat from ${player.name}: ${data.message}`);
-
-      // Broadcast chat to all players
-      this.broadcast('chat', {
-        playerId: client.sessionId,
-        playerName: player.name,
-        message: data.message,
-        timestamp: Date.now(),
-      });
-    });
 
     // Handle game config requests
     this.onMessage('request-game-config', (client) => {
@@ -486,14 +394,81 @@ export class GameRoom extends Room<GameRoomState> {
           timestamp: Date.now(),
         });
 
+        // Also send pets state for this player (always send, even if empty)
+        const playerPets = Array.from(this.state.pets.values()).filter(
+          (pet) => pet.ownerId === client.sessionId,
+        );
+
+        client.send('pets-state-sync', {
+          pets: playerPets.map((pet) => ({
+            id: pet.id,
+            ownerId: pet.ownerId,
+            x: pet.x,
+            y: pet.y,
+            hungerLevel: pet.hungerLevel,
+            currentActivity: pet.currentActivity,
+            isChasing: pet.isChasing,
+            speed: pet.speed,
+            lastFedAt: pet.lastFedAt,
+            lastHungerUpdate: pet.lastHungerUpdate,
+          })),
+          timestamp: Date.now(),
+        });
+
         this.logStateChange('PLAYER_STATE_REQUESTED', {
           playerId: client.sessionId,
           playerName: player.name,
           tokens: player.tokens,
           inventorySize: player.foodInventory.size,
+          petCount: playerPets.length,
         });
       }
     });
+
+    // Handle pet removal
+    this.onMessage(
+      'remove-pet',
+      (
+        client,
+        data: {
+          petId: string;
+        },
+      ) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player) return;
+
+        const pet = this.state.pets.get(data.petId);
+        if (!pet || pet.ownerId !== client.sessionId) {
+          client.send('remove-pet-response', {
+            success: false,
+            error: 'Pet not found or not owned by you',
+            petId: data.petId,
+          });
+          return;
+        }
+
+        console.log(`🗑️ Removing pet ${data.petId} for ${player.name}`);
+
+        // Remove pet from state
+        this.state.pets.delete(data.petId);
+
+        this.logStateChange('PET_REMOVED', {
+          petId: data.petId,
+          ownerId: client.sessionId,
+          ownerName: player.name,
+          reason: 'manual_removal',
+        });
+
+        // Send response to owner
+        client.send('remove-pet-response', {
+          success: true,
+          petId: data.petId,
+          message: `Pet ${data.petId} removed successfully`,
+        });
+
+        console.log(`✅ Pet ${data.petId} removed for ${player.name}`);
+      },
+    );
 
     console.log('✅ Message handlers setup complete');
   }
@@ -558,15 +533,6 @@ export class GameRoom extends Room<GameRoomState> {
             timeDiff,
           });
         }
-
-        // Broadcast hunger update if significant change
-        if (Math.floor(pet.hungerLevel) % 5 === 0) {
-          this.broadcast('pet-hunger-updated', {
-            petId: pet.id,
-            hungerLevel: pet.hungerLevel,
-            timestamp: now,
-          });
-        }
       }
     });
 
@@ -589,14 +555,65 @@ export class GameRoom extends Room<GameRoomState> {
     player.name = options?.name || `Player_${client.sessionId.substring(0, 6)}`;
     player.isOnline = true;
 
+    // Give starter tokens and food for new players
+    player.tokens = 100; // Starting tokens
+
+    // Add starter food items
+    const starterApple = new FoodItem();
+    starterApple.id = 'apple';
+    starterApple.quantity = 5; // 5 apples to start
+    starterApple.price = 3;
+    player.foodInventory.set('apple', starterApple);
+
     // Add to room state
     this.state.players.set(client.sessionId, player);
     this.state.playerCount = this.state.players.size;
+
+    // Auto-create starter pet for new player (only if they don't have any pets)
+    const existingPets = Array.from(this.state.pets.values()).filter(
+      (pet) => pet.ownerId === client.sessionId,
+    );
+
+    if (existingPets.length === 0) {
+      const starterPetId = this.createStarterPet(client.sessionId, player.name);
+      console.log(`🎁 Starter pet created for new player ${player.name}`);
+
+      // Send updated pets state immediately after creating starter pet
+      const updatedPets = Array.from(this.state.pets.values()).filter(
+        (pet) => pet.ownerId === client.sessionId,
+      );
+
+      client.send('pets-state-sync', {
+        pets: updatedPets.map((pet) => ({
+          id: pet.id,
+          ownerId: pet.ownerId,
+          x: pet.x,
+          y: pet.y,
+          hungerLevel: pet.hungerLevel,
+          currentActivity: pet.currentActivity,
+          isChasing: pet.isChasing,
+          speed: pet.speed,
+          lastFedAt: pet.lastFedAt,
+          lastHungerUpdate: pet.lastHungerUpdate,
+        })),
+        timestamp: Date.now(),
+      });
+
+      console.log(
+        `📤 Sent pets-state-sync with ${updatedPets.length} pets to ${player.name}`,
+      );
+    } else {
+      console.log(
+        `🔄 Returning player ${player.name} has ${existingPets.length} existing pets`,
+      );
+    }
 
     this.logStateChange('PLAYER_JOINED', {
       sessionId: client.sessionId,
       playerName: player.name,
       totalPlayers: this.state.playerCount,
+      starterTokens: player.tokens,
+      starterFood: player.foodInventory.size,
     });
 
     // Log current state after player joins
@@ -609,28 +626,6 @@ export class GameRoom extends Room<GameRoomState> {
       roomName: this.state.roomName,
     });
 
-    // Send current players list
-    client.send('players-list', {
-      players: Array.from(this.state.players.values()).map((p) => ({
-        sessionId: p.sessionId,
-        name: p.name,
-        isOnline: p.isOnline,
-      })),
-    });
-
-    // Notify other players
-    this.broadcast(
-      'player-joined',
-      {
-        player: {
-          sessionId: player.sessionId,
-          name: player.name,
-        },
-        totalPlayers: this.state.playerCount,
-      },
-      { except: client },
-    );
-
     console.log(
       `✅ ${player.name} joined successfully. Total players: ${this.state.playerCount}`,
     );
@@ -642,6 +637,26 @@ export class GameRoom extends Room<GameRoomState> {
 
     const player = this.state.players.get(client.sessionId);
     if (player) {
+      // Remove all pets owned by this player
+      const petIdsToRemove: string[] = [];
+      this.state.pets.forEach((pet, petId) => {
+        if (pet.ownerId === client.sessionId) {
+          petIdsToRemove.push(petId);
+        }
+      }); // Remove pets and log removal (no need to broadcast in single-player)
+      petIdsToRemove.forEach((petId) => {
+        this.state.pets.delete(petId);
+
+        this.logStateChange('PET_REMOVED', {
+          petId,
+          ownerId: client.sessionId,
+          ownerName: player.name,
+          reason: 'owner_left',
+        });
+
+        console.log(`🗑️ Pet ${petId} removed (owner ${player.name} left)`);
+      });
+
       // Remove player immediately (no reconnection for simplicity)
       this.state.players.delete(client.sessionId);
       this.state.playerCount = this.state.players.size;
@@ -650,23 +665,15 @@ export class GameRoom extends Room<GameRoomState> {
         sessionId: client.sessionId,
         playerName: player.name,
         totalPlayers: this.state.playerCount,
+        petsRemoved: petIdsToRemove.length,
         consented,
       });
 
       // Log current state after player leaves
       this.logCurrentState();
 
-      // Notify remaining players
-      this.broadcast('player-left', {
-        player: {
-          sessionId: player.sessionId,
-          name: player.name,
-        },
-        totalPlayers: this.state.playerCount,
-      });
-
       console.log(
-        `🗑️ ${player.name} removed. Remaining players: ${this.state.playerCount}`,
+        `🗑️ ${player.name} removed with ${petIdsToRemove.length} pets. Remaining players: ${this.state.playerCount}`,
       );
     }
   }
@@ -733,5 +740,39 @@ export class GameRoom extends Room<GameRoomState> {
         }),
       ),
     });
+  }
+
+  private createStarterPet(ownerId: string, ownerName: string) {
+    // Generate unique starter pet ID
+    const starterPetId = `starter_${ownerId}_${Date.now()}`;
+
+    console.log(`🐕 Creating starter pet ${starterPetId} for ${ownerName}`);
+
+    // Create starter pet
+    const pet = new Pet();
+    pet.id = starterPetId;
+    pet.ownerId = ownerId;
+    pet.x = 400; // Center position
+    pet.y = 300; // Center position
+    pet.petType = 'chog'; // Default pet type
+    pet.hungerLevel = 100; // Full hunger
+    pet.speed = 100;
+    pet.currentActivity = 'idle';
+    pet.isChasing = false;
+
+    // Add to state
+    this.state.pets.set(starterPetId, pet);
+
+    this.logStateChange('STARTER_PET_CREATED', {
+      petId: starterPetId,
+      ownerId,
+      ownerName,
+      position: { x: pet.x, y: pet.y },
+      petType: pet.petType,
+    });
+
+    console.log(`✅ Starter pet ${starterPetId} created for ${ownerName}`);
+
+    return starterPetId;
   }
 }
