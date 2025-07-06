@@ -1,30 +1,92 @@
 import { Client } from 'colyseus';
-import { ResponseBuilder } from '../../utils/ResponseBuilder';
-import { PetService } from '../../services/PetService';
-import { InventoryService } from '../../services/InventoryService';
+import { eventBus } from 'src/shared/even-bus';
 
-// Import specific handlers
-import { updatePlayerSettings } from './update-settings';
-import { updateTutorial } from './update-tutorial';
-import { requestGameConfig } from './game-config';
-import { requestPlayerState } from './player-state';
-import { getProfile } from './profile';
-import { claimDailyReward } from './daily-reward';
+export class PlayerEmitter {
+  // Game config handler - emit to PlayerService
+  static requestGameConfig(room: any) {
+    return (client: Client, data: any) => {
+      console.log(`⚙️ [Handler] Request game config`);
 
-export class PlayerModule {
-  // Use modular approach for all handlers
-  static requestGameConfig = requestGameConfig;
-  static requestPlayerState = requestPlayerState;
-  static getProfile = getProfile;
-  static updateSettings = updatePlayerSettings;
-  static updateTutorial = updateTutorial;
-  static claimDailyReward = claimDailyReward;
+      eventBus.emit('player.get_game_config', {
+        sessionId: client.sessionId,
+        room,
+        client,
+      });
+    };
+  }
 
-  // Helper methods for common player operations
-  static validatePlayer(room: any, client: Client): any {
-    const player = room.state.players.get(client.sessionId);
+  // Player state handler - emit to PlayerService
+  static requestPlayerState(room: any) {
+    return (client: Client, data: any) => {
+      console.log(`👤 [Handler] Request player state`);
+
+      eventBus.emit('player.get_state', {
+        sessionId: client.sessionId,
+        room,
+        client,
+      });
+    };
+  }
+
+  // Profile handler - emit to PlayerService
+  static getProfile(room: any) {
+    return (client: Client, data: any) => {
+      console.log(`📋 [Handler] Get profile request`);
+
+      eventBus.emit('player.get_profile', {
+        sessionId: client.sessionId,
+        room,
+        client,
+      });
+    };
+  }
+
+  // Daily reward handler - emit to PlayerService
+  static claimDailyReward(room: any) {
+    return (client: Client, data: any) => {
+      console.log(`🎁 [Handler] Claim daily reward`);
+
+      eventBus.emit('player.claim_daily_reward', {
+        sessionId: client.sessionId,
+        room,
+        client,
+      });
+    };
+  }
+
+  // Settings update handler - emit to PlayerService
+  static updateSettings(room: any) {
+    return (client: Client, data: any) => {
+      console.log(`⚙️ [Handler] Update settings:`, data);
+
+      eventBus.emit('player.update_settings', {
+        sessionId: client.sessionId,
+        settings: data,
+        room,
+        client,
+      });
+    };
+  }
+
+  // Tutorial update handler - emit to PlayerService
+  static updateTutorial(room: any) {
+    return (client: Client, data: any) => {
+      console.log(`📚 [Handler] Update tutorial:`, data);
+
+      eventBus.emit('player.update_tutorial', {
+        sessionId: client.sessionId,
+        tutorialData: data,
+        room,
+        client,
+      });
+    };
+  }
+
+  // Helper methods for validation (can be used by services)
+  static validatePlayer(room: any, sessionId: string): any {
+    const player = room.state.players.get(sessionId);
     if (!player) {
-      console.warn(`⚠️ Player not found for session: ${client.sessionId}`);
+      console.warn(`⚠️ Player not found for session: ${sessionId}`);
       return null;
     }
     return player;

@@ -1,7 +1,251 @@
 import { Pet } from '../schemas/game-room.schema';
 import { GAME_CONFIG } from '../config/GameConfig';
+import { eventBus } from 'src/shared/even-bus';
+import { ResponseBuilder } from '../utils/ResponseBuilder';
+import { InventoryService } from './InventoryService';
 
 export class PetService {
+  // Initialize event listeners
+  static initializeEventListeners() {
+    console.log('🎧 Initializing PetService event listeners...');
+
+    // Listen for pet creation events
+    eventBus.on('pet.create', this.handleCreatePet.bind(this));
+
+    // Listen for pet removal events
+    eventBus.on('pet.remove', this.handleRemovePet.bind(this));
+
+    // Listen for pet feeding events
+    eventBus.on('pet.feed', this.handleFeedPet.bind(this));
+
+    // Listen for pet playing events
+    eventBus.on('pet.play', this.handlePlayWithPet.bind(this));
+
+    // Listen for pet cleaning events
+    eventBus.on('pet.clean', this.handleCleanPet.bind(this));
+
+    console.log('✅ PetService event listeners initialized');
+  }
+
+  // Event handlers
+  static handleCreatePet(eventData: any) {
+    const { sessionId, petId, petType, room, client } = eventData;
+    const player = room.state.players.get(sessionId);
+
+    if (!player) return;
+
+    console.log(`🐕 [Service] Creating pet ${petId} for ${player.name}`);
+
+    const pet = this.createPet(petId, sessionId, petType);
+    room.state.pets.set(petId, pet);
+
+    // Update player's pet count
+    player.totalPetsOwned = this.getPlayerPets(
+      room.state.pets,
+      sessionId,
+    ).length;
+
+    room.loggingService.logStateChange('PET_CREATED', {
+      petId,
+      ownerId: sessionId,
+      ownerName: player.name,
+      petType,
+      totalPets: player.totalPetsOwned,
+    });
+
+    // Send updated pets state to client
+    const playerPets = this.getPlayerPets(room.state.pets, sessionId);
+    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
+
+    console.log(
+      `✅ Pet ${petId} created for ${player.name}. Total pets: ${player.totalPetsOwned}`,
+    );
+  }
+
+  static handleRemovePet(eventData: any) {
+    const { sessionId, petId, room, client } = eventData;
+    const player = room.state.players.get(sessionId);
+    const pet = room.state.pets.get(petId);
+
+    if (!player || !pet || pet.ownerId !== sessionId) {
+      console.log(`❌ Remove pet failed - invalid player/pet or ownership`);
+      return;
+    }
+
+    console.log(`🗑️ [Service] Removing pet ${petId} for ${player.name}`);
+
+    // Remove pet from state
+    room.state.pets.delete(petId);
+
+    // Update player's pet count
+    player.totalPetsOwned = this.getPlayerPets(
+      room.state.pets,
+      sessionId,
+    ).length;
+
+    room.loggingService.logStateChange('PET_REMOVED', {
+      petId,
+      ownerId: sessionId,
+      ownerName: player.name,
+      totalPets: player.totalPetsOwned,
+    });
+
+    // Send updated pets state to client
+    const playerPets = this.getPlayerPets(room.state.pets, sessionId);
+    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
+
+    console.log(
+      `✅ Pet ${petId} removed for ${player.name}. Remaining pets: ${player.totalPetsOwned}`,
+    );
+  }
+
+  static handleFeedPet(eventData: any) {
+    const { sessionId, petId, foodType, room, client } = eventData;
+    const player = room.state.players.get(sessionId);
+    const pet = room.state.pets.get(petId);
+
+    if (!player || !pet || pet.ownerId !== sessionId) {
+      console.log(`❌ Feed pet failed - invalid player/pet or ownership`);
+      client.send('action-response', {
+        success: false,
+        action: 'feed',
+        message: 'Cannot feed this pet',
+      });
+      return;
+    }
+
+    // Check if player has the food item
+    const foodQuantity = InventoryService.getItemQuantity(
+      player,
+      'food',
+      foodType,
+    );
+
+    if (foodQuantity <= 0) {
+      console.log(`❌ ${player.name} doesn't have ${foodType} to feed pet`);
+      client.send('action-response', {
+        success: false,
+        action: 'feed',
+        message: `You don't have any ${foodType}`,
+      });
+      return;
+    }
+
+    console.log(
+      `🍔 [Service] ${player.name} feeding pet ${petId} with ${foodType}`,
+    );
+
+    // Use food from inventory
+    InventoryService.useItem(player, 'food', foodType, 1);
+
+    // Feed the pet (increase hunger)
+    this.feedPet(pet, 25); // Food restores 25 hunger points
+
+    // Send success response with updated stats
+    client.send('action-response', {
+      success: true,
+      action: 'feed',
+      message: `Fed ${foodType} to your pet`,
+      petStats: this.getPetStatsSummary(pet),
+      inventory: InventoryService.getInventorySummary(player),
+    });
+
+    room.loggingService.logStateChange('PET_FED', {
+      petId,
+      ownerId: sessionId,
+      ownerName: player.name,
+      foodType,
+      newHunger: pet.hunger,
+      newHappiness: pet.happiness,
+    });
+
+    console.log(
+      `✅ ${player.name} fed pet ${petId}. New stats: hunger=${pet.hunger}, happiness=${pet.happiness}`,
+    );
+  }
+
+  static handlePlayWithPet(eventData: any) {
+    const { sessionId, petId, room, client } = eventData;
+    const player = room.state.players.get(sessionId);
+    const pet = room.state.pets.get(petId);
+
+    if (!player || !pet || pet.ownerId !== sessionId) {
+      console.log(`❌ Play with pet failed - invalid player/pet or ownership`);
+      client.send('action-response', {
+        success: false,
+        action: 'play',
+        message: 'Cannot play with this pet',
+      });
+      return;
+    }
+
+    console.log(`🎾 [Service] ${player.name} playing with pet ${petId}`);
+
+    // Play with the pet (increase happiness)
+    this.playWithPet(pet, 20);
+
+    // Send success response with updated stats
+    client.send('action-response', {
+      success: true,
+      action: 'play',
+      message: 'Played with your pet',
+      petStats: this.getPetStatsSummary(pet),
+    });
+
+    room.loggingService.logStateChange('PET_PLAYED', {
+      petId,
+      ownerId: sessionId,
+      ownerName: player.name,
+      newHappiness: pet.happiness,
+    });
+
+    console.log(
+      `✅ ${player.name} played with pet ${petId}. New happiness: ${pet.happiness}`,
+    );
+  }
+
+  static handleCleanPet(eventData: any) {
+    const { sessionId, petId, room, client } = eventData;
+    const player = room.state.players.get(sessionId);
+    const pet = room.state.pets.get(petId);
+
+    if (!player || !pet || pet.ownerId !== sessionId) {
+      console.log(`❌ Clean pet failed - invalid player/pet or ownership`);
+      client.send('action-response', {
+        success: false,
+        action: 'clean',
+        message: 'Cannot clean this pet',
+      });
+      return;
+    }
+
+    console.log(`🧼 [Service] ${player.name} cleaning pet ${petId}`);
+
+    // Clean the pet (increase cleanliness)
+    this.cleanPet(pet, 30);
+
+    // Send success response with updated stats
+    client.send('action-response', {
+      success: true,
+      action: 'clean',
+      message: 'Cleaned your pet',
+      petStats: this.getPetStatsSummary(pet),
+    });
+
+    room.loggingService.logStateChange('PET_CLEANED', {
+      petId,
+      ownerId: sessionId,
+      ownerName: player.name,
+      newCleanliness: pet.cleanliness,
+      newHappiness: pet.happiness,
+    });
+
+    console.log(
+      `✅ ${player.name} cleaned pet ${petId}. New stats: cleanliness=${pet.cleanliness}, happiness=${pet.happiness}`,
+    );
+  }
+
+  // Core pet creation and management methods
   static createStarterPet(ownerId: string, ownerName: string): Pet {
     const starterPetId = `starter_${ownerId}_${Date.now()}`;
 

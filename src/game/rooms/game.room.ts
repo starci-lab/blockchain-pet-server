@@ -1,10 +1,13 @@
 import { Room, Client } from 'colyseus';
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema';
-import { PetHandlers } from '../handlers/PetHandlers';
-import { FoodHandlers } from '../handlers/FoodHandlers';
-import { PlayerModule } from '../handlers/player';
+// Emitters: Only emit events, no business logic
+import { PetEmitters } from '../handlers/PetEmitters';
+import { FoodEmitters } from '../handlers/FoodEmitters';
+import { PlayerEmitter } from '../handlers/player';
+// Services: Handle events with business logic
 import { PlayerService } from '../services/PlayerService';
 import { PetService } from '../services/PetService';
+import { InventoryService } from '../services/InventoryService';
 import { LoggingService } from '../services/LoggingService';
 import { ResponseBuilder } from '../utils/ResponseBuilder';
 import { GAME_CONFIG } from '../config/GameConfig';
@@ -26,6 +29,13 @@ export class GameRoom extends Room<GameRoomState> {
     this.setState(new GameRoomState());
     this.state.roomName = options?.name || 'Pet Simulator Room';
 
+    // Initialize event listeners for all services
+    console.log('🎧 Initializing service event listeners...');
+    PlayerService.initializeEventListeners();
+    PetService.initializeEventListeners();
+    InventoryService.initializeEventListeners();
+    console.log('✅ All service event listeners initialized');
+
     this.loggingService.logRoomCreated();
   }
 
@@ -39,32 +49,33 @@ export class GameRoom extends Room<GameRoomState> {
   }
 
   private setupMessageHandlers() {
-    // Pet handlers
-    this.onMessage('create-pet', PetHandlers.createPet(this));
-    this.onMessage('remove-pet', PetHandlers.removePet(this));
-    this.onMessage('feed-pet', PetHandlers.feedPet(this));
-    this.onMessage('play-pet', PetHandlers.playWithPet(this));
-    this.onMessage('clean-pet', PetHandlers.cleanPet(this));
+    // Pet emitters (emit events to PetService)
+    this.onMessage('create_pet', PetEmitters.createPet(this));
+    this.onMessage('remove_pet', PetEmitters.removePet(this));
+    this.onMessage('feed_pet', PetEmitters.feedPet(this));
+    this.onMessage('play_with_pet', PetEmitters.playWithPet(this));
+    this.onMessage('clean_pet', PetEmitters.cleanPet(this));
 
-    // Store/Item handlers
-    this.onMessage('purchase-item', FoodHandlers.purchaseItem(this));
-    this.onMessage('get-store-catalog', FoodHandlers.getStoreCatalog(this));
-    this.onMessage('get-inventory', FoodHandlers.getInventory(this));
+    // Food emitters (emit events to InventoryService)
+    this.onMessage('buy_food', FoodEmitters.purchaseItem(this));
+    this.onMessage('get_store_catalog', FoodEmitters.getStoreCatalog(this));
+    this.onMessage('get_inventory', FoodEmitters.getInventory(this));
 
-    // Player handlers (using modular approach)
-    this.onMessage('request-game-config', PlayerModule.requestGameConfig(this));
+    // Player emitters (emit events to PlayerService)
     this.onMessage(
-      'request-player-state',
-      PlayerModule.requestPlayerState(this),
+      'request_game_config',
+      PlayerEmitter.requestGameConfig(this),
     );
-    this.onMessage('get-profile', PlayerModule.getProfile(this));
-    this.onMessage('claim-daily-reward', PlayerModule.claimDailyReward(this));
+    this.onMessage(
+      'request_player_state',
+      PlayerEmitter.requestPlayerState(this),
+    );
+    this.onMessage('get_profile', PlayerEmitter.getProfile(this));
+    this.onMessage('claim_daily_reward', PlayerEmitter.claimDailyReward(this));
+    this.onMessage('update_settings', PlayerEmitter.updateSettings(this));
+    this.onMessage('update_tutorial', PlayerEmitter.updateTutorial(this));
 
-    // Player action modules
-    this.onMessage('update-settings', PlayerModule.updateSettings(this));
-    this.onMessage('update-tutorial', PlayerModule.updateTutorial(this));
-
-    console.log('✅ Message handlers setup complete (with modular structure)');
+    console.log('✅ Message emitters setup complete (event emitter pattern)');
   }
 
   private updateGameLogic() {
