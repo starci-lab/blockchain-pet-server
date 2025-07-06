@@ -1,47 +1,3 @@
-/*
- * PlayerService - Handles player data with direct MongoDB integration
- *
- * To setup Mongoose integration:
- * 1. Install: npm install mongoose
- * 2. Create User model (src/models/User.ts):
- *
- *    import mongoose, { Schema, Document } from 'mongoose';
- *
- *    interface IUser extends Document {
- *      sessionId: string;
- *      name: string;
- *      addressWallet?: string;
- *      tokens: number;
- *      totalPetsOwned: number;
- *      inventory: Array<{
- *        itemType: string;
- *        itemName: string;
- *        quantity: number;
- *        totalPurchased: number;
- *      }>;
- *      lastUpdated: Date;
- *    }
- *
- *    const UserSchema = new Schema<IUser>({
- *      sessionId: { type: String, required: true, unique: true },
- *      name: { type: String, required: true },
- *      addressWallet: { type: String },
- *      tokens: { type: Number, default: 100 },
- *      totalPetsOwned: { type: Number, default: 0 },
- *      inventory: [{
- *        itemType: String,
- *        itemName: String,
- *        quantity: Number,
- *        totalPurchased: Number
- *      }],
- *      lastUpdated: { type: Date, default: Date.now }
- *    });
- *
- *    export const User = mongoose.model<IUser>('User', UserSchema);
- *
- * 3. Replace simulate methods with real Mongoose calls
- */
-
 import { Player, InventoryItem } from '../schemas/game-room.schema';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { eventBus } from 'src/shared/even-bus';
@@ -120,8 +76,8 @@ export class PlayerService {
 
     console.log(`👤 [Service] Sending player state to ${player.name}`);
 
-    // Get player's pets
-    const playerPets = PetService.getPlayerPets(room.state.pets, sessionId);
+    // Get player's pets from player state
+    const playerPets = PetService.getPlayerPets(player);
     const inventorySummary = InventoryService.getInventorySummary(player);
 
     client.send('player-state-response', {
@@ -209,13 +165,16 @@ export class PlayerService {
         `🐕 Found ${userPets.length} pets for user ${user.wallet_address}`,
       );
 
+      // Sync pets from database to player state
+      await PetService.syncPlayerPetsFromDatabase(player, userPets);
+
       // Convert user data to profile response
       const profile = {
         sessionId: player.sessionId,
         name: player.name || `Player_${user.wallet_address.substring(0, 6)}`,
         wallet_address: user.wallet_address,
         tokens: player.tokens, // Use in-game tokens (might be different from DB)
-        totalPetsOwned: userPets.length,
+        totalPetsOwned: player.totalPetsOwned, // Now accurate from synced pets
         inventory: this.convertDbInventoryToGameFormat([]), // User schema doesn't have inventory yet
         pets: userPets.map((pet: any) => ({
           id: (pet._id as Types.ObjectId).toString(),
@@ -390,9 +349,11 @@ export class PlayerService {
       }
 
       const userModel = dbService.getUserModel();
+      const petModel = dbService.getPetModel();
 
       // Try to find user by wallet address or session
       let user = null;
+
       if (addressWallet) {
         user = await userModel
           .findOne({
@@ -403,11 +364,15 @@ export class PlayerService {
 
       if (user) {
         console.log(`✅ User data fetched from DB:`, user.wallet_address);
+        const petCount = await petModel
+          .countDocuments({ owner_id: user._id })
+          .exec();
+
         return {
           sessionId,
           name: `Player_${user.wallet_address.substring(0, 6)}`,
-          tokens: 100, // Use in-game tokens, not DB tokens
-          totalPetsOwned: 0, // Will be calculated from pets collection
+          tokens: user.token_nom || GAME_CONFIG.ECONOMY.INITIAL_TOKENS,
+          totalPetsOwned: petCount, // Use actual count from database
           inventory: [], // User schema doesn't have inventory yet
           wallet_address: user.wallet_address,
         };
@@ -424,7 +389,6 @@ export class PlayerService {
     }
   }
 
-  // Helper method for default user data
   private static getDefaultUserData(sessionId: string) {
     return {
       sessionId,
@@ -444,7 +408,6 @@ export class PlayerService {
     name?: string;
     addressWallet?: string;
   }): Promise<Player> {
-    // Fetch real user data
     const userData = await this.fetchUserData(sessionId, addressWallet);
 
     const player = new Player();
@@ -453,6 +416,7 @@ export class PlayerService {
       userData.name || name || `Player_${sessionId.substring(0, 6)}`;
     player.tokens = userData.tokens || GAME_CONFIG.ECONOMY.INITIAL_TOKENS;
     player.totalPetsOwned = userData.totalPetsOwned || 0;
+    player.walletAddress = userData.wallet_address || addressWallet || '';
 
     // Add inventory from fetched data or starter items
     if (userData.inventory && userData.inventory.length > 0) {
@@ -482,6 +446,23 @@ export class PlayerService {
       console.log(`🎁 Added starter items for new user`);
     }
 
+    // Sync pets from database if user exists
+    if (addressWallet) {
+      try {
+        console.log(
+          `🔍 [DEBUG] Attempting to sync pets for wallet: ${addressWallet}`,
+        );
+        await this.syncPlayerPetsFromDatabase(player, addressWallet);
+        console.log(
+          `🔄 [DEBUG] Pet sync completed for ${player.name}, totalPets: ${player.totalPetsOwned}`,
+        );
+      } catch (error) {
+        console.warn(`⚠️ Failed to sync pets from database:`, error);
+      }
+    } else {
+      console.log(`👤 [DEBUG] No wallet address provided, skipping pet sync`);
+    }
+
     console.log(
       `👤 Created player: ${player.name} with ${player.tokens} tokens, ${player.totalPetsOwned} pets, ${player.inventory.size} inventory items`,
     );
@@ -496,6 +477,51 @@ export class PlayerService {
     });
 
     return player;
+  }
+
+  // Sync pets from database to player state during player creation
+  static async syncPlayerPetsFromDatabase(
+    player: Player,
+    walletAddress: string,
+  ): Promise<void> {
+    try {
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) {
+        console.warn('Database service not initialized, skipping pet sync');
+        return;
+      }
+
+      const userModel = dbService.getUserModel();
+      const petModel = dbService.getPetModel();
+
+      // Find user by wallet address
+      const user = await userModel
+        .findOne({
+          wallet_address: walletAddress.toLowerCase(),
+        })
+        .exec();
+
+      if (!user) {
+        console.log(`👤 New user ${walletAddress}, no pets to sync`);
+        return;
+      }
+
+      // Fetch user's pets from database
+      const userPets = await petModel
+        .find({ owner_id: user._id })
+        .populate('type')
+        .exec();
+
+      if (userPets.length > 0) {
+        // Use PetService to sync pets to player state
+        await PetService.syncPlayerPetsFromDatabase(player, userPets);
+        console.log(
+          `🔄 Synced ${userPets.length} pets from database for ${player.name}`,
+        );
+      }
+    } catch (error) {
+      console.error(`❌ Error syncing pets from database:`, error);
+    }
   }
 
   static async addTokens(player: Player, amount: number): Promise<void> {

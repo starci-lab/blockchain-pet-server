@@ -15,10 +15,7 @@ export const getProfile = (room: any) => {
     }
 
     try {
-      const playerPets = PetService.getPlayerPets(
-        room.state.pets,
-        client.sessionId,
-      );
+      const playerPets = PetService.getPlayerPets(player);
       const inventory = InventoryService.getInventorySummary(player);
 
       const profile = {

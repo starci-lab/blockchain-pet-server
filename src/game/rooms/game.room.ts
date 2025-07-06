@@ -1,5 +1,6 @@
 import { Room, Client } from 'colyseus';
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema';
+import { MapSchema } from '@colyseus/schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from 'src/api/user/schemas/user.schema';
@@ -84,8 +85,10 @@ export class GameRoom extends Room<GameRoomState> {
   }
 
   private updateGameLogic() {
-    // Update pet stats over time (hunger, happiness, cleanliness decay)
-    PetService.updatePetStats(this.state.pets);
+    // Update pet stats over time for each player (hunger, happiness, cleanliness decay)
+    this.state.players.forEach((player) => {
+      PetService.updatePlayerPetStats(player);
+    });
 
     // Periodically save player data (every 5 minutes)
     const now = Date.now();
@@ -120,6 +123,9 @@ export class GameRoom extends Room<GameRoomState> {
         name: options?.name,
         addressWallet: options?.addressWallet || '',
       });
+      console.log(
+        `🎮 Player created: ${player.name} (${client.sessionId}) ${player.walletAddress}`,
+      );
 
       // Add to room state
       this.state.players.set(client.sessionId, player);
@@ -158,25 +164,40 @@ export class GameRoom extends Room<GameRoomState> {
 
   private handleNewPlayerPets(client: Client, player: Player) {
     // Auto-create starter pet for new player (only if they don't have any pets)
-    const existingPets = PetService.getPlayerPets(
-      this.state.pets,
-      client.sessionId,
+    const existingPets = PetService.getPlayerPets(player);
+
+    console.log(
+      `🔍 [DEBUG] Player ${player.name} has ${existingPets.length} existing pets`,
     );
+    console.log(`🔍 [DEBUG] Player pets collection:`, player.pets);
 
     if (existingPets.length === 0) {
+      console.log(`🎯 [DEBUG] Creating starter pet for ${player.name}...`);
+
       const starterPet = PetService.createStarterPet(
         client.sessionId,
         player.name,
       );
+
+      console.log(`🐕 [DEBUG] Starter pet created:`, starterPet.id);
+
+      // Add to room state
       this.state.pets.set(starterPet.id, starterPet);
+
+      // Add to player's pets collection
+      if (!player.pets) {
+        player.pets = new MapSchema<Pet>();
+        console.log(`🔧 [DEBUG] Initialized player.pets collection`);
+      }
+      player.pets.set(starterPet.id, starterPet);
+
+      // Update player's pet count
+      player.totalPetsOwned = PetService.getPlayerPets(player).length;
 
       console.log(`🎁 Starter pet created for new player ${player.name}`);
 
       // Send updated pets state immediately after creating starter pet
-      const updatedPets = PetService.getPlayerPets(
-        this.state.pets,
-        client.sessionId,
-      );
+      const updatedPets = PetService.getPlayerPets(player);
 
       client.send(
         'pets-state-sync',

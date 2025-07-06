@@ -22,10 +22,7 @@ export const requestPlayerState = (room: any) => {
       client.send('player-state-sync', ResponseBuilder.playerStateSync(player));
 
       // Also send pets state for this player
-      const playerPets = PetService.getPlayerPets(
-        room.state.pets,
-        client.sessionId,
-      );
+      const playerPets = PetService.getPlayerPets(player);
       client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
 
       // Send inventory state

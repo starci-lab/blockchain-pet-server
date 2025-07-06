@@ -15,7 +15,6 @@ export const claimDailyReward = (room: any) => {
     }
 
     try {
-      // Simple daily reward logic (you can enhance this with cooldown tracking)
       const dailyRewards = {
         tokens: 50,
         items: [

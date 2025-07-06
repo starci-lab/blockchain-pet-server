@@ -3,6 +3,7 @@ import { GAME_CONFIG } from '../config/GameConfig';
 import { eventBus } from 'src/shared/even-bus';
 import { ResponseBuilder } from '../utils/ResponseBuilder';
 import { InventoryService } from './InventoryService';
+import { MapSchema } from '@colyseus/schema';
 
 export class PetService {
   // Initialize event listeners
@@ -37,13 +38,18 @@ export class PetService {
     console.log(`🐕 [Service] Creating pet ${petId} for ${player.name}`);
 
     const pet = this.createPet(petId, sessionId, petType);
+
+    // Add pet to room state
     room.state.pets.set(petId, pet);
 
+    // Add pet to player's pets collection
+    if (!player.pets) {
+      player.pets = new MapSchema<Pet>();
+    }
+    player.pets.set(petId, pet);
+
     // Update player's pet count
-    player.totalPetsOwned = this.getPlayerPets(
-      room.state.pets,
-      sessionId,
-    ).length;
+    player.totalPetsOwned = this.getPlayerPets(player).length;
 
     room.loggingService.logStateChange('PET_CREATED', {
       petId,
@@ -54,7 +60,11 @@ export class PetService {
     });
 
     // Send updated pets state to client
-    const playerPets = this.getPlayerPets(room.state.pets, sessionId);
+    console.log('🔄 Sending pets-state-sync after create pet...');
+    const playerPets = this.getPlayerPets(player);
+    console.log(
+      `📤 Player ${player.name} has ${playerPets.length} pets to sync`,
+    );
     client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
 
     console.log(
@@ -74,14 +84,16 @@ export class PetService {
 
     console.log(`🗑️ [Service] Removing pet ${petId} for ${player.name}`);
 
-    // Remove pet from state
+    // Remove pet from room state
     room.state.pets.delete(petId);
 
+    // Remove pet from player's pets collection
+    if (player.pets) {
+      player.pets.delete(petId);
+    }
+
     // Update player's pet count
-    player.totalPetsOwned = this.getPlayerPets(
-      room.state.pets,
-      sessionId,
-    ).length;
+    player.totalPetsOwned = this.getPlayerPets(player).length;
 
     room.loggingService.logStateChange('PET_REMOVED', {
       petId,
@@ -91,7 +103,11 @@ export class PetService {
     });
 
     // Send updated pets state to client
-    const playerPets = this.getPlayerPets(room.state.pets, sessionId);
+    console.log('🔄 Sending pets-state-sync after remove pet...');
+    const playerPets = this.getPlayerPets(player);
+    console.log(
+      `📤 Player ${player.name} has ${playerPets.length} pets remaining`,
+    );
     client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
 
     console.log(
@@ -150,6 +166,12 @@ export class PetService {
       inventory: InventoryService.getInventorySummary(player),
     });
 
+    // Also sync updated pets state to client
+    console.log('🔄 Sending pets-state-sync after feed pet...');
+    const playerPets = this.getPlayerPets(player);
+    console.log(`📤 Syncing ${playerPets.length} pets with updated stats`);
+    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
+
     room.loggingService.logStateChange('PET_FED', {
       petId,
       ownerId: sessionId,
@@ -192,6 +214,10 @@ export class PetService {
       petStats: this.getPetStatsSummary(pet),
     });
 
+    // Also sync updated pets state to client
+    const playerPets = this.getPlayerPets(player);
+    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
+
     room.loggingService.logStateChange('PET_PLAYED', {
       petId,
       ownerId: sessionId,
@@ -231,6 +257,10 @@ export class PetService {
       message: 'Cleaned your pet',
       petStats: this.getPetStatsSummary(pet),
     });
+
+    // Also sync updated pets state to client
+    const playerPets = this.getPlayerPets(player);
+    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets));
 
     room.loggingService.logStateChange('PET_CLEANED', {
       petId,
@@ -274,7 +304,45 @@ export class PetService {
     return pet;
   }
 
-  // Update pet stats over time (hunger, happiness, cleanliness decay)
+  // Update pet stats over time for a specific player (hunger, happiness, cleanliness decay)
+  static updatePlayerPetStats(player: any): void {
+    if (!player.pets) return;
+
+    const now = Date.now();
+    const updateInterval = 60000; // 1 minute
+
+    player.pets.forEach((pet: Pet) => {
+      const timeSinceLastUpdate = now - pet.lastUpdated;
+
+      if (timeSinceLastUpdate >= updateInterval) {
+        const hoursElapsed = timeSinceLastUpdate / (1000 * 60 * 60);
+
+        // Decay rates per hour
+        const hungerDecay = 5; // Lose 5 hunger per hour
+        const happinessDecay = 3; // Lose 3 happiness per hour
+        const cleanlinessDecay = 2; // Lose 2 cleanliness per hour
+
+        // Apply decay
+        pet.hunger = Math.max(0, pet.hunger - hungerDecay * hoursElapsed);
+        pet.happiness = Math.max(
+          0,
+          pet.happiness - happinessDecay * hoursElapsed,
+        );
+        pet.cleanliness = Math.max(
+          0,
+          pet.cleanliness - cleanlinessDecay * hoursElapsed,
+        );
+
+        pet.lastUpdated = now;
+
+        console.log(
+          `📊 Pet ${pet.id} stats updated: hunger=${pet.hunger.toFixed(1)}, happiness=${pet.happiness.toFixed(1)}, cleanliness=${pet.cleanliness.toFixed(1)}`,
+        );
+      }
+    });
+  }
+
+  // Update pet stats over time for all pets in room (legacy method)
   static updatePetStats(pets: any): void {
     const now = Date.now();
     const updateInterval = 60000; // 1 minute
@@ -340,14 +408,14 @@ export class PetService {
     );
   }
 
-  // Get pets owned by specific player
-  static getPlayerPets(pets: any, ownerId: string): Pet[] {
+  // Get pets owned by specific player from player state
+  static getPlayerPets(player: any): Pet[] {
     const playerPets: Pet[] = [];
-    pets.forEach((pet: Pet) => {
-      if (pet.ownerId === ownerId) {
+    if (player && player.pets) {
+      player.pets.forEach((pet: Pet) => {
         playerPets.push(pet);
-      }
-    });
+      });
+    }
     return playerPets;
   }
 
@@ -364,5 +432,44 @@ export class PetService {
       ),
       lastUpdated: pet.lastUpdated,
     };
+  }
+
+  // Sync pets from database to player state
+  static async syncPlayerPetsFromDatabase(
+    player: any,
+    userPets: any[],
+  ): Promise<void> {
+    console.log(
+      `🔄 [Service] Syncing ${userPets.length} pets from database for ${player.name}`,
+    );
+
+    // Initialize player pets collection if not exists
+    if (!player.pets) {
+      player.pets = new MapSchema<Pet>();
+    }
+
+    // Clear existing pets
+    player.pets.clear();
+
+    // Add pets from database to player state
+    userPets.forEach((dbPet: any) => {
+      const pet = new Pet();
+      pet.id = dbPet._id.toString();
+      pet.ownerId = player.sessionId;
+      pet.petType = dbPet.type?.name || 'chog';
+      pet.hunger = dbPet.stats?.hunger || 50;
+      pet.happiness = dbPet.stats?.happiness || 50;
+      pet.cleanliness = dbPet.stats?.cleanliness || 50;
+      pet.lastUpdated = Date.now();
+
+      player.pets.set(pet.id, pet);
+    });
+
+    // Update player's pet count
+    player.totalPetsOwned = this.getPlayerPets(player).length;
+
+    console.log(
+      `✅ [Service] Synced ${player.totalPetsOwned} pets for ${player.name}`,
+    );
   }
 }
