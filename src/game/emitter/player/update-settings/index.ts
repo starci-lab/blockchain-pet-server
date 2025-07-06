@@ -1,7 +1,7 @@
 import { Client } from 'colyseus';
-import { PlayerService } from '../../../services/PlayerService';
-import { InventoryService } from '../../../services/InventoryService';
+
 import { ResponseBuilder } from '../../../utils/ResponseBuilder';
+import { PlayerService } from 'src/game/handlers/PlayerService';
 
 // Player Settings Update Handler
 export const updatePlayerSettings = (room: any) => {

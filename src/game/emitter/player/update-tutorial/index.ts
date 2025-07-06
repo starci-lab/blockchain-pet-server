@@ -1,6 +1,6 @@
 import { Client } from 'colyseus';
-import { PlayerService } from '../../../services/PlayerService';
-import { InventoryService } from '../../../services/InventoryService';
+import { InventoryService } from 'src/game/handlers/InventoryService';
+import { PlayerService } from 'src/game/handlers/PlayerService';
 
 // Update Tutorial Progress Handler
 export const updateTutorial = (room: any) => {

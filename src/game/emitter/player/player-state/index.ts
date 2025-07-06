@@ -1,7 +1,7 @@
 import { Client } from 'colyseus';
 import { ResponseBuilder } from '../../../utils/ResponseBuilder';
-import { PetService } from '../../../services/PetService';
-import { InventoryService } from '../../../services/InventoryService';
+import { PetService } from 'src/game/handlers/PetService';
+import { InventoryService } from 'src/game/handlers/InventoryService';
 
 // Player State Request Module
 export const requestPlayerState = (room: any) => {

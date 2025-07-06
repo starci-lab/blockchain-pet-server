@@ -1,16 +1,17 @@
 import { Room, Client } from 'colyseus';
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema';
 // Emitters: Only emit events, no business logic
-import { PetEmitters } from '../handlers/PetEmitters';
-import { FoodEmitters } from '../handlers/FoodEmitters';
-import { PlayerEmitter } from '../handlers/player';
+
 // Services: Handle events with business logic
-import { PlayerService } from '../services/PlayerService';
-import { PetService } from '../services/PetService';
-import { InventoryService } from '../services/InventoryService';
-import { LoggingService } from '../services/LoggingService';
 import { ResponseBuilder } from '../utils/ResponseBuilder';
 import { GAME_CONFIG } from '../config/GameConfig';
+import { PetEmitters } from 'src/game/emitter/PetEmitters';
+import { FoodEmitters } from 'src/game/emitter/FoodEmitters';
+import { PlayerEmitter } from 'src/game/emitter/player';
+import { LoggingService } from 'src/game/handlers/LoggingService';
+import { PlayerService } from 'src/game/handlers/PlayerService';
+import { PetService } from 'src/game/handlers/PetService';
+import { InventoryService } from 'src/game/handlers/InventoryService';
 
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS; // Single player only

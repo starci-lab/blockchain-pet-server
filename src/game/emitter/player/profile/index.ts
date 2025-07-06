@@ -1,6 +1,6 @@
 import { Client } from 'colyseus';
-import { PetService } from '../../../services/PetService';
-import { InventoryService } from '../../../services/InventoryService';
+import { InventoryService } from 'src/game/handlers/InventoryService';
+import { PetService } from 'src/game/handlers/PetService';
 
 // Player Profile Module
 export const getProfile = (room: any) => {
