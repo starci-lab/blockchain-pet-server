@@ -22,6 +22,12 @@ export class User {
   @Prop({ type: String, default: '' })
   nickname?: string;
 
+  @Prop({
+    type: Number,
+    default: 100,
+  })
+  token_nom: number;
+
   @Prop({ type: Date, default: null })
   last_active_at?: Date;
 }

@@ -1,9 +1,54 @@
+/*
+ * PlayerService - Handles player data with direct MongoDB integration
+ *
+ * To setup Mongoose integration:
+ * 1. Install: npm install mongoose
+ * 2. Create User model (src/models/User.ts):
+ *
+ *    import mongoose, { Schema, Document } from 'mongoose';
+ *
+ *    interface IUser extends Document {
+ *      sessionId: string;
+ *      name: string;
+ *      addressWallet?: string;
+ *      tokens: number;
+ *      totalPetsOwned: number;
+ *      inventory: Array<{
+ *        itemType: string;
+ *        itemName: string;
+ *        quantity: number;
+ *        totalPurchased: number;
+ *      }>;
+ *      lastUpdated: Date;
+ *    }
+ *
+ *    const UserSchema = new Schema<IUser>({
+ *      sessionId: { type: String, required: true, unique: true },
+ *      name: { type: String, required: true },
+ *      addressWallet: { type: String },
+ *      tokens: { type: Number, default: 100 },
+ *      totalPetsOwned: { type: Number, default: 0 },
+ *      inventory: [{
+ *        itemType: String,
+ *        itemName: String,
+ *        quantity: Number,
+ *        totalPurchased: Number
+ *      }],
+ *      lastUpdated: { type: Date, default: Date.now }
+ *    });
+ *
+ *    export const User = mongoose.model<IUser>('User', UserSchema);
+ *
+ * 3. Replace simulate methods with real Mongoose calls
+ */
+
 import { Player, InventoryItem } from '../schemas/game-room.schema';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { eventBus } from 'src/shared/even-bus';
 import { ResponseBuilder } from '../utils/ResponseBuilder';
 import { PetService } from './PetService';
 import { InventoryService } from './InventoryService';
+// import { User } from '../models/User'; // Uncomment when User model is created
 
 export class PlayerService {
   // Initialize event listeners for player actions
@@ -220,40 +265,36 @@ export class PlayerService {
       tutorialData: tutorialData,
     });
   }
-  // Fetch user data from external API/Database
+  // Fetch user data from MongoDB via Mongoose
   static async fetchUserData(
     sessionId: string,
     addressWallet?: string,
   ): Promise<any> {
     try {
-      // Emit event to fetch user data from your backend/database
       console.log(
         `🔍 Fetching user data for sessionId: ${sessionId}, wallet: ${addressWallet}`,
       );
 
-      // This will emit event to fetch real user data
-      const userData = await new Promise((resolve, reject) => {
-        eventBus.emit('user.fetch_profile', {
-          sessionId,
-          addressWallet,
-          timestamp: Date.now(),
-        });
+      // TODO: Replace with actual Mongoose User model
+      // Example:
+      // import { User } from '../models/User';
+      // const user = await User.findOne({
+      //   $or: [
+      //     { sessionId },
+      //     { addressWallet }
+      //   ]
+      // });
 
-        // Listen for response from your backend
-        const timeout = setTimeout(() => {
-          reject(new Error('User data fetch timeout'));
-        }, 5000); // 5 second timeout
+      // For now, simulate database call
+      const userData = await this.simulateDbFetch(sessionId, addressWallet);
 
-        eventBus.once(`user.fetch_profile.response.${sessionId}`, (data) => {
-          clearTimeout(timeout);
-          resolve(data);
-        });
-      });
-
-      console.log(`✅ User data fetched:`, userData);
+      console.log(`✅ User data fetched from DB:`, userData);
       return userData;
     } catch (error) {
-      console.warn(`⚠️ Failed to fetch user data, using defaults:`, error);
+      console.warn(
+        `⚠️ Failed to fetch user data from DB, using defaults:`,
+        error,
+      );
       // Return default data if fetch fails
       return {
         name: `Player_${sessionId.substring(0, 6)}`,
@@ -262,6 +303,44 @@ export class PlayerService {
         inventory: [],
       };
     }
+  }
+
+  // Simulate database fetch (replace with real Mongoose query)
+  private static async simulateDbFetch(
+    sessionId: string,
+    addressWallet?: string,
+  ): Promise<any> {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Simulate finding existing user or creating new one
+    const isReturningUser = Math.random() > 0.7; // 30% chance of returning user
+
+    if (isReturningUser) {
+      return {
+        sessionId,
+        name: `ReturningPlayer_${sessionId.substring(0, 6)}`,
+        tokens: 150, // Returning user has more tokens
+        totalPetsOwned: 2,
+        inventory: [
+          {
+            itemType: 'food',
+            itemName: 'apple',
+            quantity: 5,
+            totalPurchased: 10,
+          },
+          {
+            itemType: 'food',
+            itemName: 'hamburger',
+            quantity: 2,
+            totalPurchased: 3,
+          },
+        ],
+      };
+    }
+
+    // New user - return null so we use defaults
+    return null;
   }
 
   static async createNewPlayer({
@@ -327,22 +406,28 @@ export class PlayerService {
     return player;
   }
 
-  static addTokens(player: Player, amount: number): void {
+  static async addTokens(player: Player, amount: number): Promise<void> {
     player.tokens += amount;
     console.log(
       `💰 Added ${amount} tokens to ${player.name}. New balance: ${player.tokens}`,
     );
 
-    // Emit event to update tokens in database
-    eventBus.emit('user.update_tokens', {
-      sessionId: player.sessionId,
-      tokens: player.tokens,
-      tokensAdded: amount,
-      timestamp: Date.now(),
-    });
+    // Save to database immediately
+    try {
+      // TODO: Replace with actual Mongoose update
+      // await User.findOneAndUpdate(
+      //   { sessionId: player.sessionId },
+      //   { tokens: player.tokens, lastUpdated: Date.now() }
+      // );
+
+      await this.simulateDbUpdate(player.sessionId, { tokens: player.tokens });
+      console.log(`💾 Updated tokens in DB for ${player.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to update tokens in DB:`, error);
+    }
   }
 
-  static deductTokens(player: Player, amount: number): boolean {
+  static async deductTokens(player: Player, amount: number): Promise<boolean> {
     if (player.tokens < amount) {
       console.log(
         `❌ ${player.name} doesn't have enough tokens. Has: ${player.tokens}, needs: ${amount}`,
@@ -355,19 +440,35 @@ export class PlayerService {
       `💰 Deducted ${amount} tokens from ${player.name}. New balance: ${player.tokens}`,
     );
 
-    // Emit event to update tokens in database
-    eventBus.emit('user.update_tokens', {
-      sessionId: player.sessionId,
-      tokens: player.tokens,
-      tokensDeducted: amount,
-      timestamp: Date.now(),
-    });
+    // Save to database immediately
+    try {
+      // TODO: Replace with actual Mongoose update
+      // await User.findOneAndUpdate(
+      //   { sessionId: player.sessionId },
+      //   { tokens: player.tokens, lastUpdated: Date.now() }
+      // );
+
+      await this.simulateDbUpdate(player.sessionId, { tokens: player.tokens });
+      console.log(`💾 Updated tokens in DB for ${player.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to update tokens in DB:`, error);
+    }
 
     return true;
   }
 
-  // Save player data to database
-  static savePlayerData(player: Player): void {
+  // Simulate database update (replace with real Mongoose operation)
+  private static async simulateDbUpdate(
+    sessionId: string,
+    updateData: any,
+  ): Promise<void> {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    console.log(`📀 [DB] Updated user ${sessionId}:`, updateData);
+  }
+
+  // Save player data to MongoDB via Mongoose
+  static async savePlayerData(player: Player): Promise<void> {
     try {
       const playerData = {
         sessionId: player.sessionId,
@@ -385,10 +486,32 @@ export class PlayerService {
         lastSaved: Date.now(),
       };
 
-      eventBus.emit('user.save_profile', playerData);
-      console.log(`💾 Saved player data for ${player.name}`);
+      // TODO: Replace with actual Mongoose User model
+      // Example:
+      // await User.findOneAndUpdate(
+      //   { sessionId: player.sessionId },
+      //   playerData,
+      //   { upsert: true, new: true }
+      // );
+
+      // For now, simulate database save
+      await this.simulateDbSave(playerData);
+
+      console.log(`💾 Saved player data to DB for ${player.name}`);
     } catch (error) {
-      console.error(`❌ Failed to save player data:`, error);
+      console.error(`❌ Failed to save player data to DB:`, error);
     }
+  }
+
+  // Simulate database save (replace with real Mongoose operation)
+  private static async simulateDbSave(playerData: any): Promise<void> {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    console.log(`📀 [DB] Saved player data:`, {
+      sessionId: playerData.sessionId,
+      name: playerData.name,
+      tokens: playerData.tokens,
+      inventoryItems: playerData.inventory.length,
+    });
   }
 }

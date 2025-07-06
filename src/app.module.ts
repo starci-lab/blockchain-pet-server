@@ -8,6 +8,8 @@ import { AuthModule } from './api/auth/auth.module';
 import { UserModule } from './api/user/user.module';
 import authConfig from 'src/api/auth/config/auth-config';
 import { JwtModule } from '@nestjs/jwt';
+import { StoreItemModule } from './api/store-item/store-item.module';
+import { PetModule } from './api/pet/pet.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { JwtModule } from '@nestjs/jwt';
     GameModule,
     AuthModule,
     UserModule,
+    StoreItemModule,
+    PetModule,
   ],
   controllers: [AppController],
   providers: [AppService],

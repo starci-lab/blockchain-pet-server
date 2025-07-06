@@ -5,6 +5,7 @@ import { User, UserSchema } from 'src/api/user/schemas/user.schema';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PetModule } from 'src/api/pet/pet.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         },
       }),
     }),
+    PetModule,
   ],
   controllers: [AuthController],
   providers: [AuthService],
