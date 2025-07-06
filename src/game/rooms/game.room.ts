@@ -94,7 +94,9 @@ export class GameRoom extends Room<GameRoomState> {
     // Periodically save player data (every 5 minutes)
     const now = Date.now();
     if (!this.lastPlayerSave || now - this.lastPlayerSave >= 5 * 60 * 1000) {
-      this.saveAllPlayerData();
+      this.saveAllPlayerData().catch((error) => {
+        console.error('❌ Failed to save player data:', error);
+      });
       this.lastPlayerSave = now;
     }
 
@@ -102,15 +104,22 @@ export class GameRoom extends Room<GameRoomState> {
     this.loggingService.periodicStateSummary();
   }
 
-  private saveAllPlayerData() {
+  private async saveAllPlayerData() {
     let savedCount = 0;
+    const savePromises: Promise<void>[] = [];
+
     this.state.players.forEach((player) => {
-      PlayerService.savePlayerData(player);
+      savePromises.push(PlayerService.savePlayerData(player));
       savedCount++;
     });
 
-    if (savedCount > 0) {
-      console.log(`💾 Auto-saved data for ${savedCount} players`);
+    try {
+      await Promise.all(savePromises);
+      if (savedCount > 0) {
+        console.log(`💾 Auto-saved data for ${savedCount} players`);
+      }
+    } catch (error) {
+      console.error(`❌ Error saving player data:`, error);
     }
   }
 
@@ -234,7 +243,9 @@ export class GameRoom extends Room<GameRoomState> {
     const player = this.state.players.get(client.sessionId);
     if (player) {
       // Save player data before removing
-      PlayerService.savePlayerData(player);
+      PlayerService.savePlayerData(player).catch((error) => {
+        console.error(`❌ Failed to save player data on leave:`, error);
+      });
 
       // Remove all pets owned by this player
       const petIdsToRemove = this.removePlayerPets(

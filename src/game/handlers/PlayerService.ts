@@ -118,8 +118,12 @@ export class PlayerService {
       const userModel = dbService.getUserModel();
       const petModel = dbService.getPetModel();
 
-      // Try to get wallet address from session
-      const walletAddress = this.getWalletFromSession(sessionId);
+      // Try to get wallet address from player first, fallback to session
+      let walletAddress = player.walletAddress;
+      if (!walletAddress) {
+        walletAddress = this.getWalletFromSession(sessionId);
+      }
+
       let user = null;
 
       if (walletAddress) {
@@ -211,14 +215,18 @@ export class PlayerService {
       );
 
       // Fallback to in-memory data if DB query fails
-      const inventorySummary = InventoryService.getInventorySummary(player);
+      const inventorySummary = InventoryService.getInventorySummary(player); // Get wallet address for fallback profile
+      let fallbackWallet = player.walletAddress;
+      if (!fallbackWallet) {
+        fallbackWallet = this.getWalletFromSession(sessionId);
+      }
 
       client.send('profile-response', {
         success: true,
         profile: {
           sessionId: player.sessionId,
           name: player.name,
-          wallet_address: this.getWalletFromSession(sessionId),
+          wallet_address: fallbackWallet,
           tokens: player.tokens,
           totalPetsOwned: player.totalPetsOwned,
           inventory: inventorySummary,
@@ -525,6 +533,7 @@ export class PlayerService {
     }
   }
 
+  // Token management methods with database synchronization
   static async addTokens(player: Player, amount: number): Promise<void> {
     player.tokens += amount;
     console.log(
@@ -532,28 +541,7 @@ export class PlayerService {
     );
 
     // Save to database immediately
-    try {
-      const dbService = DatabaseService.getInstance();
-      if (!dbService) {
-        console.warn('Database service not initialized, skipping token save');
-        return;
-      }
-
-      const walletAddress = this.getWalletFromSession(player.sessionId);
-      if (walletAddress) {
-        const userModel = dbService.getUserModel();
-        await userModel
-          .findOneAndUpdate(
-            { wallet_address: walletAddress.toLowerCase() },
-            { last_active_at: new Date() },
-            { upsert: false },
-          )
-          .exec();
-        console.log(`💾 Updated user activity in DB for ${player.name}`);
-      }
-    } catch (error) {
-      console.error(`❌ Failed to update user activity in DB:`, error);
-    }
+    await this.saveTokensToDatabase(player, 'add', amount);
   }
 
   static async deductTokens(player: Player, amount: number): Promise<boolean> {
@@ -570,90 +558,94 @@ export class PlayerService {
     );
 
     // Save to database immediately
+    await this.saveTokensToDatabase(player, 'deduct', amount);
+    return true;
+  }
+
+  // Helper method to save tokens to database
+  static async saveTokensToDatabase(
+    player: Player,
+    action: string,
+    amount: number,
+  ): Promise<void> {
     try {
       const dbService = DatabaseService.getInstance();
       if (!dbService) {
         console.warn('Database service not initialized, skipping token save');
-        return true;
-      }
-
-      const walletAddress = this.getWalletFromSession(player.sessionId);
-      if (walletAddress) {
-        const userModel = dbService.getUserModel();
-        await userModel
-          .findOneAndUpdate(
-            { wallet_address: walletAddress.toLowerCase() },
-            { last_active_at: new Date() },
-            { upsert: false },
-          )
-          .exec();
-        console.log(`💾 Updated user activity in DB for ${player.name}`);
-      }
-    } catch (error) {
-      console.error(`❌ Failed to update user activity in DB:`, error);
-    }
-
-    return true;
-  }
-
-  // Save player data to MongoDB via Mongoose
-  static async savePlayerData(player: Player): Promise<void> {
-    try {
-      const dbService = DatabaseService.getInstance();
-      if (!dbService) {
-        console.warn('Database service not initialized, skipping player save');
         return;
       }
 
-      const walletAddress = this.getWalletFromSession(player.sessionId);
+      // Use player.walletAddress first, fallback to getWalletFromSession
+      let walletAddress = player.walletAddress;
+      if (!walletAddress) {
+        const sessionWallet = this.getWalletFromSession(player.sessionId);
+        if (sessionWallet) {
+          walletAddress = sessionWallet;
+        }
+      }
+
       if (!walletAddress) {
         console.warn(
-          `No wallet address found for session ${player.sessionId}, skipping save`,
+          `No wallet address found for player ${player.name} (session: ${player.sessionId}), skipping token save`,
         );
         return;
       }
 
       const userModel = dbService.getUserModel();
 
-      // Update user activity timestamp
-      await userModel
+      // Update user with new token balance and activity timestamp
+      const updateResult = await userModel
         .findOneAndUpdate(
           { wallet_address: walletAddress.toLowerCase() },
-          { last_active_at: new Date() },
-          { upsert: false },
+          {
+            token_nom: player.tokens,
+            last_active_at: new Date(),
+          },
+          { upsert: false, new: true },
         )
         .exec();
 
-      console.log(`💾 Saved player data to DB for ${player.name}`);
+      if (updateResult) {
+        console.log(
+          `💾 Tokens ${action}ed: ${amount}. Saved ${player.tokens} tokens to DB for ${player.name} (wallet: ${walletAddress})`,
+        );
+      } else {
+        console.warn(
+          `⚠️ User not found in DB for wallet ${walletAddress}, tokens not saved`,
+        );
+      }
     } catch (error) {
-      console.error(`❌ Failed to save player data to DB:`, error);
+      console.error(
+        `❌ Failed to save tokens to DB for ${player.name}:`,
+        error,
+      );
     }
-  }
-
-  // Helper method to convert DB inventory format to game format
-  private static convertDbInventoryToGameFormat(dbInventory: any[]): any {
-    const gameInventory: any = {};
-
-    dbInventory.forEach((item) => {
-      const key = `${item.itemType}_${item.itemName}`;
-      gameInventory[key] = {
-        itemType: item.itemType,
-        itemName: item.itemName,
-        quantity: item.quantity || 0,
-        totalPurchased: item.totalPurchased || 0,
-      };
-    });
-
-    return gameInventory;
   }
 
   // Helper method to get session-wallet mapping
   private static getWalletFromSession(sessionId: string): string | null {
-    // TODO: Implement proper session-wallet mapping
-    // This could be stored in Redis, memory cache, or derived from JWT token
-    // For now, assume sessionId might be wallet address
-    return sessionId.startsWith('0x') ? sessionId : null;
+    // TODO: Implement proper session-wallet mapping from JWT token or cache
+    // Options:
+    // 1. Parse JWT token to extract wallet address
+    // 2. Store session->wallet mapping in Redis/memory cache during auth
+    // 3. Use dedicated session storage service
+
+    // For now, try different patterns to extract wallet address
+    // Pattern 1: sessionId is already a wallet address (0x...)
+    if (sessionId.startsWith('0x') && sessionId.length === 42) {
+      return sessionId;
+    }
+
+    // Pattern 2: sessionId contains wallet in some format
+    // Add more patterns as needed based on your auth implementation
+
+    console.warn(
+      `⚠️ Could not extract wallet address from sessionId: ${sessionId}. ` +
+        `Consider implementing proper session-wallet mapping.`,
+    );
+    return null;
   }
+
   static handleGetPetsState(eventData: any) {
     const { sessionId, room, client } = eventData;
     const player = room.state.players.get(sessionId);
@@ -717,6 +709,72 @@ export class PlayerService {
         pets: [],
         error: error.message,
       });
+    }
+  }
+
+  // Helper method to convert DB inventory format to game format
+  private static convertDbInventoryToGameFormat(dbInventory: any[]): any {
+    const gameInventory: any = {};
+
+    dbInventory.forEach((item) => {
+      const key = `${item.itemType}_${item.itemName}`;
+      gameInventory[key] = {
+        itemType: item.itemType,
+        itemName: item.itemName,
+        quantity: item.quantity || 0,
+        totalPurchased: item.totalPurchased || 0,
+      };
+    });
+
+    return gameInventory;
+  }
+
+  // Save player data to database
+  static async savePlayerData(player: Player): Promise<void> {
+    try {
+      console.log(`💾 Saving player data for ${player.name}...`);
+
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) {
+        console.warn('Database service not initialized, skipping player save');
+        return;
+      }
+
+      // Use player.walletAddress first, fallback to getWalletFromSession
+      let walletAddress = player.walletAddress;
+      if (!walletAddress) {
+        const sessionWallet = this.getWalletFromSession(player.sessionId);
+        if (sessionWallet) {
+          walletAddress = sessionWallet;
+        }
+      }
+
+      if (!walletAddress) {
+        console.warn(
+          `No wallet address found for player ${player.name} (session: ${player.sessionId}), skipping save`,
+        );
+        return;
+      }
+
+      const userModel = dbService.getUserModel();
+
+      // Update user activity and tokens
+      await userModel
+        .findOneAndUpdate(
+          { wallet_address: walletAddress.toLowerCase() },
+          {
+            last_active_at: new Date(),
+            token_nom: player.tokens, // Sync tokens to database
+          },
+          { upsert: false },
+        )
+        .exec();
+
+      console.log(
+        `✅ Player data saved for ${player.name} (wallet: ${walletAddress}, tokens: ${player.tokens})`,
+      );
+    } catch (error) {
+      console.error(`❌ Failed to save player data for ${player.name}:`, error);
     }
   }
 }

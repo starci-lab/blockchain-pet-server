@@ -1,5 +1,6 @@
 import { Player, InventoryItem } from '../schemas/game-room.schema';
 import { eventBus } from 'src/shared/even-bus';
+import { PlayerService } from './PlayerService'; // Import PlayerService for token operations
 
 // Simple item store configuration
 const STORE_ITEMS = {
@@ -36,7 +37,7 @@ export class InventoryService {
   }
 
   // Event handlers
-  static handlePurchaseItem(eventData: any) {
+  static async handlePurchaseItem(eventData: any) {
     const { sessionId, itemType, itemName, quantity, room, client } = eventData;
     const player = room.state.players.get(sessionId);
 
@@ -59,7 +60,7 @@ export class InventoryService {
     }
 
     const itemConfig = categoryItems[itemName];
-    const result = this.purchaseItem(
+    const result = await this.purchaseItem(
       player,
       itemType,
       itemName,
@@ -223,13 +224,13 @@ export class InventoryService {
   }
 
   // Purchase item (add to inventory and deduct tokens)
-  static purchaseItem(
+  static async purchaseItem(
     player: Player,
     itemType: string,
     itemName: string,
     quantity: number,
     pricePerItem: number,
-  ): { success: boolean; message: string; currentTokens: number } {
+  ): Promise<{ success: boolean; message: string; currentTokens: number }> {
     const totalCost = quantity * pricePerItem;
 
     if (player.tokens < totalCost) {
@@ -240,8 +241,16 @@ export class InventoryService {
       };
     }
 
-    // Deduct tokens
-    player.tokens -= totalCost;
+    // Deduct tokens using PlayerService (this will sync to database)
+    const tokenDeducted = await PlayerService.deductTokens(player, totalCost);
+
+    if (!tokenDeducted) {
+      return {
+        success: false,
+        message: `Failed to deduct tokens`,
+        currentTokens: player.tokens,
+      };
+    }
 
     // Add item to inventory
     this.addItem(player, itemType, itemName, quantity);
