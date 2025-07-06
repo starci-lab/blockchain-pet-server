@@ -56,7 +56,6 @@ export class PetService {
 
       if (!defaultPetType) {
         // Create default pet type if not exists
-        console.log('🎯 Creating default pet type: Chog');
         defaultPetType = new this.petTypeModel({
           name: 'Chog',
           description: 'A cute starter pet',
@@ -73,7 +72,6 @@ export class PetService {
           image_url: '/assets/images/Chog/chog_idle.png',
         });
         await defaultPetType.save();
-        console.log(`✅ Default pet type created: ${defaultPetType._id}`);
       }
 
       // Create starter pet for the user
@@ -90,11 +88,6 @@ export class PetService {
       });
 
       await starterPet.save();
-
-      console.log(
-        `🐕 Starter pet created successfully for user ${walletAddress}:`,
-        starterPet._id,
-      );
 
       return starterPet;
     } catch (error) {

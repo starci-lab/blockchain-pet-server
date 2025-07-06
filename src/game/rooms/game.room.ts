@@ -1,5 +1,9 @@
 import { Room, Client } from 'colyseus';
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User, UserDocument } from 'src/api/user/schemas/user.schema';
+import { Pet as PetModel, PetDocument } from 'src/api/pet/schemas/pet.schema';
 // Emitters: Only emit events, no business logic
 
 // Services: Handle events with business logic

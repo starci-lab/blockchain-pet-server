@@ -48,6 +48,8 @@ import { eventBus } from 'src/shared/even-bus';
 import { ResponseBuilder } from '../utils/ResponseBuilder';
 import { PetService } from './PetService';
 import { InventoryService } from './InventoryService';
+import { DatabaseService } from '../services/DatabaseService';
+import { Types } from 'mongoose';
 // import { User } from '../models/User'; // Uncomment when User model is created
 
 export class PlayerService {
@@ -135,7 +137,7 @@ export class PlayerService {
     });
   }
 
-  static handleGetProfile(eventData: any) {
+  static async handleGetProfile(eventData: any) {
     const { sessionId, room, client } = eventData;
     const player = room.state.players.get(sessionId);
 
@@ -147,21 +149,126 @@ export class PlayerService {
       return;
     }
 
-    console.log(`📋 [Service] Sending profile to ${player.name}`);
+    console.log(`📋 [Service] Fetching profile from DB for ${player.name}`);
 
-    const inventorySummary = InventoryService.getInventorySummary(player);
+    try {
+      // Get database service instance
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) {
+        throw new Error('Database service not initialized');
+      }
 
-    client.send('profile-response', {
-      success: true,
-      profile: {
+      const userModel = dbService.getUserModel();
+      const petModel = dbService.getPetModel();
+
+      // Try to get wallet address from session
+      const walletAddress = this.getWalletFromSession(sessionId);
+      let user = null;
+
+      if (walletAddress) {
+        // Find user by wallet address
+        user = await userModel
+          .findOne({
+            wallet_address: walletAddress.toLowerCase(),
+          })
+          .exec();
+      }
+
+      if (!user) {
+        // If no user found in DB, use in-memory player data
+        console.log(
+          `⚠️ User not found in DB, using in-memory data for ${player.name}`,
+        );
+
+        const inventorySummary = InventoryService.getInventorySummary(player);
+
+        client.send('profile-response', {
+          success: true,
+          profile: {
+            sessionId: player.sessionId,
+            name: player.name,
+            wallet_address: walletAddress,
+            tokens: player.tokens,
+            totalPetsOwned: player.totalPetsOwned,
+            inventory: inventorySummary,
+            pets: [],
+            joinedAt: Date.now(),
+            lastActiveAt: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Fetch user's pets from database
+      const userPets = await petModel
+        .find({ owner_id: user._id })
+        .populate('type')
+        .exec();
+
+      console.log(
+        `🐕 Found ${userPets.length} pets for user ${user.wallet_address}`,
+      );
+
+      // Convert user data to profile response
+      const profile = {
         sessionId: player.sessionId,
-        name: player.name,
-        tokens: player.tokens,
-        totalPetsOwned: player.totalPetsOwned,
-        inventory: inventorySummary,
-        joinedAt: Date.now(), // Could be stored in player schema
-      },
-    });
+        name: player.name || `Player_${user.wallet_address.substring(0, 6)}`,
+        wallet_address: user.wallet_address,
+        tokens: player.tokens, // Use in-game tokens (might be different from DB)
+        totalPetsOwned: userPets.length,
+        inventory: this.convertDbInventoryToGameFormat([]), // User schema doesn't have inventory yet
+        pets: userPets.map((pet: any) => ({
+          id: (pet._id as Types.ObjectId).toString(),
+          name: pet.name || 'Unnamed Pet',
+          type: pet.type?.name || 'chog', // Type is populated
+          stats: {
+            happiness: pet.stats?.happiness || 0,
+            hunger: pet.stats?.hunger || 0,
+            cleanliness: pet.stats?.cleanliness || 0,
+          },
+          status: pet.status,
+          createdAt: pet.createdAt || new Date(),
+          updatedAt: pet.updatedAt || new Date(),
+        })),
+        joinedAt: (user as any).createdAt
+          ? (user as any).createdAt.getTime()
+          : Date.now(),
+        lastActiveAt: user.last_active_at || new Date(),
+      };
+
+      client.send('profile-response', {
+        success: true,
+        profile: profile,
+      });
+
+      console.log(
+        `✅ Profile sent to ${player.name} with ${userPets.length} pets`,
+      );
+    } catch (error) {
+      console.error(
+        `❌ Error fetching profile from DB for ${player.name}:`,
+        error,
+      );
+
+      // Fallback to in-memory data if DB query fails
+      const inventorySummary = InventoryService.getInventorySummary(player);
+
+      client.send('profile-response', {
+        success: true,
+        profile: {
+          sessionId: player.sessionId,
+          name: player.name,
+          wallet_address: this.getWalletFromSession(sessionId),
+          tokens: player.tokens,
+          totalPetsOwned: player.totalPetsOwned,
+          inventory: inventorySummary,
+          pets: [],
+          joinedAt: Date.now(),
+          lastActiveAt: new Date(),
+          error: 'Database temporarily unavailable',
+        },
+      });
+    }
   }
 
   static handleClaimDailyReward(eventData: any) {
@@ -275,72 +382,57 @@ export class PlayerService {
         `🔍 Fetching user data for sessionId: ${sessionId}, wallet: ${addressWallet}`,
       );
 
-      // TODO: Replace with actual Mongoose User model
-      // Example:
-      // import { User } from '../models/User';
-      // const user = await User.findOne({
-      //   $or: [
-      //     { sessionId },
-      //     { addressWallet }
-      //   ]
-      // });
+      // Get database service instance
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) {
+        console.warn('Database service not initialized, using defaults');
+        return this.getDefaultUserData(sessionId);
+      }
 
-      // For now, simulate database call
-      const userData = await this.simulateDbFetch(sessionId, addressWallet);
+      const userModel = dbService.getUserModel();
 
-      console.log(`✅ User data fetched from DB:`, userData);
-      return userData;
+      // Try to find user by wallet address or session
+      let user = null;
+      if (addressWallet) {
+        user = await userModel
+          .findOne({
+            wallet_address: addressWallet.toLowerCase(),
+          })
+          .exec();
+      }
+
+      if (user) {
+        console.log(`✅ User data fetched from DB:`, user.wallet_address);
+        return {
+          sessionId,
+          name: `Player_${user.wallet_address.substring(0, 6)}`,
+          tokens: 100, // Use in-game tokens, not DB tokens
+          totalPetsOwned: 0, // Will be calculated from pets collection
+          inventory: [], // User schema doesn't have inventory yet
+          wallet_address: user.wallet_address,
+        };
+      }
+
+      // Return default data for new users
+      return this.getDefaultUserData(sessionId);
     } catch (error) {
       console.warn(
         `⚠️ Failed to fetch user data from DB, using defaults:`,
         error,
       );
-      // Return default data if fetch fails
-      return {
-        name: `Player_${sessionId.substring(0, 6)}`,
-        tokens: GAME_CONFIG.ECONOMY.INITIAL_TOKENS,
-        totalPetsOwned: 0,
-        inventory: [],
-      };
+      return this.getDefaultUserData(sessionId);
     }
   }
 
-  // Simulate database fetch (replace with real Mongoose query)
-  private static async simulateDbFetch(
-    sessionId: string,
-    addressWallet?: string,
-  ): Promise<any> {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Simulate finding existing user or creating new one
-    const isReturningUser = Math.random() > 0.7; // 30% chance of returning user
-
-    if (isReturningUser) {
-      return {
-        sessionId,
-        name: `ReturningPlayer_${sessionId.substring(0, 6)}`,
-        tokens: 150, // Returning user has more tokens
-        totalPetsOwned: 2,
-        inventory: [
-          {
-            itemType: 'food',
-            itemName: 'apple',
-            quantity: 5,
-            totalPurchased: 10,
-          },
-          {
-            itemType: 'food',
-            itemName: 'hamburger',
-            quantity: 2,
-            totalPurchased: 3,
-          },
-        ],
-      };
-    }
-
-    // New user - return null so we use defaults
-    return null;
+  // Helper method for default user data
+  private static getDefaultUserData(sessionId: string) {
+    return {
+      sessionId,
+      name: `Player_${sessionId.substring(0, 6)}`,
+      tokens: GAME_CONFIG.ECONOMY.INITIAL_TOKENS,
+      totalPetsOwned: 0,
+      inventory: [],
+    };
   }
 
   static async createNewPlayer({
@@ -414,16 +506,26 @@ export class PlayerService {
 
     // Save to database immediately
     try {
-      // TODO: Replace with actual Mongoose update
-      // await User.findOneAndUpdate(
-      //   { sessionId: player.sessionId },
-      //   { tokens: player.tokens, lastUpdated: Date.now() }
-      // );
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) {
+        console.warn('Database service not initialized, skipping token save');
+        return;
+      }
 
-      await this.simulateDbUpdate(player.sessionId, { tokens: player.tokens });
-      console.log(`💾 Updated tokens in DB for ${player.name}`);
+      const walletAddress = this.getWalletFromSession(player.sessionId);
+      if (walletAddress) {
+        const userModel = dbService.getUserModel();
+        await userModel
+          .findOneAndUpdate(
+            { wallet_address: walletAddress.toLowerCase() },
+            { last_active_at: new Date() },
+            { upsert: false },
+          )
+          .exec();
+        console.log(`💾 Updated user activity in DB for ${player.name}`);
+      }
     } catch (error) {
-      console.error(`❌ Failed to update tokens in DB:`, error);
+      console.error(`❌ Failed to update user activity in DB:`, error);
     }
   }
 
@@ -442,60 +544,58 @@ export class PlayerService {
 
     // Save to database immediately
     try {
-      // TODO: Replace with actual Mongoose update
-      // await User.findOneAndUpdate(
-      //   { sessionId: player.sessionId },
-      //   { tokens: player.tokens, lastUpdated: Date.now() }
-      // );
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) {
+        console.warn('Database service not initialized, skipping token save');
+        return true;
+      }
 
-      await this.simulateDbUpdate(player.sessionId, { tokens: player.tokens });
-      console.log(`💾 Updated tokens in DB for ${player.name}`);
+      const walletAddress = this.getWalletFromSession(player.sessionId);
+      if (walletAddress) {
+        const userModel = dbService.getUserModel();
+        await userModel
+          .findOneAndUpdate(
+            { wallet_address: walletAddress.toLowerCase() },
+            { last_active_at: new Date() },
+            { upsert: false },
+          )
+          .exec();
+        console.log(`💾 Updated user activity in DB for ${player.name}`);
+      }
     } catch (error) {
-      console.error(`❌ Failed to update tokens in DB:`, error);
+      console.error(`❌ Failed to update user activity in DB:`, error);
     }
 
     return true;
   }
 
-  // Simulate database update (replace with real Mongoose operation)
-  private static async simulateDbUpdate(
-    sessionId: string,
-    updateData: any,
-  ): Promise<void> {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    console.log(`📀 [DB] Updated user ${sessionId}:`, updateData);
-  }
-
   // Save player data to MongoDB via Mongoose
   static async savePlayerData(player: Player): Promise<void> {
     try {
-      const playerData = {
-        sessionId: player.sessionId,
-        name: player.name,
-        tokens: player.tokens,
-        totalPetsOwned: player.totalPetsOwned,
-        inventory: Array.from(player.inventory.entries()).map(
-          ([key, item]) => ({
-            itemType: item.itemType,
-            itemName: item.itemName,
-            quantity: item.quantity,
-            totalPurchased: item.totalPurchased,
-          }),
-        ),
-        lastSaved: Date.now(),
-      };
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) {
+        console.warn('Database service not initialized, skipping player save');
+        return;
+      }
 
-      // TODO: Replace with actual Mongoose User model
-      // Example:
-      // await User.findOneAndUpdate(
-      //   { sessionId: player.sessionId },
-      //   playerData,
-      //   { upsert: true, new: true }
-      // );
+      const walletAddress = this.getWalletFromSession(player.sessionId);
+      if (!walletAddress) {
+        console.warn(
+          `No wallet address found for session ${player.sessionId}, skipping save`,
+        );
+        return;
+      }
 
-      // For now, simulate database save
-      await this.simulateDbSave(playerData);
+      const userModel = dbService.getUserModel();
+
+      // Update user activity timestamp
+      await userModel
+        .findOneAndUpdate(
+          { wallet_address: walletAddress.toLowerCase() },
+          { last_active_at: new Date() },
+          { upsert: false },
+        )
+        .exec();
 
       console.log(`💾 Saved player data to DB for ${player.name}`);
     } catch (error) {
@@ -503,15 +603,28 @@ export class PlayerService {
     }
   }
 
-  // Simulate database save (replace with real Mongoose operation)
-  private static async simulateDbSave(playerData: any): Promise<void> {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    console.log(`📀 [DB] Saved player data:`, {
-      sessionId: playerData.sessionId,
-      name: playerData.name,
-      tokens: playerData.tokens,
-      inventoryItems: playerData.inventory.length,
+  // Helper method to convert DB inventory format to game format
+  private static convertDbInventoryToGameFormat(dbInventory: any[]): any {
+    const gameInventory: any = {};
+
+    dbInventory.forEach((item) => {
+      const key = `${item.itemType}_${item.itemName}`;
+      gameInventory[key] = {
+        itemType: item.itemType,
+        itemName: item.itemName,
+        quantity: item.quantity || 0,
+        totalPurchased: item.totalPurchased || 0,
+      };
     });
+
+    return gameInventory;
+  }
+
+  // Helper method to get session-wallet mapping
+  private static getWalletFromSession(sessionId: string): string | null {
+    // TODO: Implement proper session-wallet mapping
+    // This could be stored in Redis, memory cache, or derived from JWT token
+    // For now, assume sessionId might be wallet address
+    return sessionId.startsWith('0x') ? sessionId : null;
   }
 }
