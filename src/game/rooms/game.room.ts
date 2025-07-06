@@ -2,7 +2,7 @@ import { Room, Client } from 'colyseus';
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema';
 import { PetHandlers } from '../handlers/PetHandlers';
 import { FoodHandlers } from '../handlers/FoodHandlers';
-import { PlayerHandlers } from '../handlers/PlayerHandlers';
+import { PlayerModule } from '../handlers/player';
 import { PlayerService } from '../services/PlayerService';
 import { PetService } from '../services/PetService';
 import { LoggingService } from '../services/LoggingService';
@@ -12,6 +12,7 @@ import { GAME_CONFIG } from '../config/GameConfig';
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS; // Single player only
   public loggingService: LoggingService;
+  private lastPlayerSave: number = 0;
 
   onCreate(options: any) {
     this.loggingService = new LoggingService(this);
@@ -50,47 +51,93 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage('get-store-catalog', FoodHandlers.getStoreCatalog(this));
     this.onMessage('get-inventory', FoodHandlers.getInventory(this));
 
-    // Player handlers
-    this.onMessage(
-      'request-game-config',
-      PlayerHandlers.requestGameConfig(this),
-    );
+    // Player handlers (using modular approach)
+    this.onMessage('request-game-config', PlayerModule.requestGameConfig(this));
     this.onMessage(
       'request-player-state',
-      PlayerHandlers.requestPlayerState(this),
+      PlayerModule.requestPlayerState(this),
     );
+    this.onMessage('get-profile', PlayerModule.getProfile(this));
+    this.onMessage('claim-daily-reward', PlayerModule.claimDailyReward(this));
 
-    console.log('✅ Message handlers setup complete');
+    // Player action modules
+    this.onMessage('update-settings', PlayerModule.updateSettings(this));
+    this.onMessage('update-tutorial', PlayerModule.updateTutorial(this));
+
+    console.log('✅ Message handlers setup complete (with modular structure)');
   }
 
   private updateGameLogic() {
     // Update pet stats over time (hunger, happiness, cleanliness decay)
     PetService.updatePetStats(this.state.pets);
 
+    // Periodically save player data (every 5 minutes)
+    const now = Date.now();
+    if (!this.lastPlayerSave || now - this.lastPlayerSave >= 5 * 60 * 1000) {
+      this.saveAllPlayerData();
+      this.lastPlayerSave = now;
+    }
+
     // Log periodic state summary
     this.loggingService.periodicStateSummary();
   }
 
-  onJoin(client: Client, options: any) {
-    console.log(`👋 Player joined: ${client.sessionId}`);
+  private saveAllPlayerData() {
+    let savedCount = 0;
+    this.state.players.forEach((player) => {
+      PlayerService.savePlayerData(player);
+      savedCount++;
+    });
 
-    // Create new player using service
-    const player = PlayerService.createNewPlayer(
-      client.sessionId,
-      options?.name,
-    );
+    if (savedCount > 0) {
+      console.log(`💾 Auto-saved data for ${savedCount} players`);
+    }
+  }
 
-    // Add to room state
-    this.state.players.set(client.sessionId, player);
-    this.state.playerCount = this.state.players.size;
+  async onJoin(client: Client, options: any) {
+    console.log(`👋 Player joined: ${client.sessionId}`, options);
 
-    this.handleNewPlayerPets(client, player);
-    this.loggingService.logPlayerJoined(player);
-    this.sendWelcomeMessage(client, player);
+    try {
+      // Create new player using async service to fetch real user data
+      const player = await PlayerService.createNewPlayer({
+        sessionId: client.sessionId,
+        name: options?.name,
+        addressWallet: options?.addressWallet || '',
+      });
 
-    console.log(
-      `✅ ${player.name} joined successfully. Total players: ${this.state.playerCount}`,
-    );
+      // Add to room state
+      this.state.players.set(client.sessionId, player);
+      this.state.playerCount = this.state.players.size;
+
+      this.handleNewPlayerPets(client, player);
+      this.loggingService.logPlayerJoined(player);
+      this.sendWelcomeMessage(client, player);
+
+      console.log(
+        `✅ ${player.name} joined successfully. Total players: ${this.state.playerCount}`,
+      );
+    } catch (error) {
+      console.error(
+        `❌ Failed to create player for ${client.sessionId}:`,
+        error,
+      );
+
+      // Create fallback player with minimal data
+      const fallbackPlayer = new Player();
+      fallbackPlayer.sessionId = client.sessionId;
+      fallbackPlayer.name =
+        options?.name || `Player_${client.sessionId.substring(0, 6)}`;
+      fallbackPlayer.tokens = GAME_CONFIG.ECONOMY.INITIAL_TOKENS;
+      fallbackPlayer.totalPetsOwned = 0;
+
+      this.state.players.set(client.sessionId, fallbackPlayer);
+      this.state.playerCount = this.state.players.size;
+
+      this.handleNewPlayerPets(client, fallbackPlayer);
+      this.sendWelcomeMessage(client, fallbackPlayer);
+
+      console.log(`⚠️ Created fallback player for ${client.sessionId}`);
+    }
   }
 
   private handleNewPlayerPets(client: Client, player: Player) {
@@ -148,6 +195,9 @@ export class GameRoom extends Room<GameRoomState> {
 
     const player = this.state.players.get(client.sessionId);
     if (player) {
+      // Save player data before removing
+      PlayerService.savePlayerData(player);
+
       // Remove all pets owned by this player
       const petIdsToRemove = this.removePlayerPets(
         client.sessionId,

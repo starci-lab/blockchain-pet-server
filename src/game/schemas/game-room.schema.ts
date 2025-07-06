@@ -31,6 +31,7 @@ export class InventoryItem extends Schema {
 // Simplified Player with basic inventory
 export class Player extends Schema {
   @type('string') sessionId: string = '';
+  @type('string') walletAddress: string = ''; // Optional, for blockchain integration
   @type('string') name: string = '';
   @type('number') tokens: number = 100; // Game currency
   @type('number') totalPetsOwned: number = 0; // Count of pets owned
