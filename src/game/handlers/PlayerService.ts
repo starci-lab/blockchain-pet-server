@@ -17,6 +17,7 @@ export class PlayerService {
     eventBus.on('player.get_game_config', this.handleGetGameConfig.bind(this));
     eventBus.on('player.get_state', this.handleGetPlayerState.bind(this));
     eventBus.on('player.get_profile', this.handleGetProfile.bind(this));
+    eventBus.on('player.get_pets_state', this.handleGetPetsState.bind(this));
     eventBus.on(
       'player.claim_daily_reward',
       this.handleClaimDailyReward.bind(this),
@@ -652,5 +653,70 @@ export class PlayerService {
     // This could be stored in Redis, memory cache, or derived from JWT token
     // For now, assume sessionId might be wallet address
     return sessionId.startsWith('0x') ? sessionId : null;
+  }
+  static handleGetPetsState(eventData: any) {
+    const { sessionId, room, client } = eventData;
+    const player = room.state.players.get(sessionId);
+
+    if (!player) {
+      client.send('pets-state-sync', {
+        success: false,
+        message: 'Player not found',
+        pets: [],
+      });
+      return;
+    }
+
+    console.log(`🐕 [Service] Sending pets state to ${player.name}`);
+
+    try {
+      // Get player's pets from room state
+      const roomPets: any[] = [];
+      if (room.state.pets) {
+        room.state.pets.forEach((pet: any, petId: string) => {
+          if (pet.ownerId === sessionId) {
+            roomPets.push(pet);
+          }
+        });
+      }
+
+      // Also get pets from player state as fallback
+      const playerPets = PetService.getPlayerPets(player);
+
+      // Use room pets as primary source, fallback to player pets
+      const allPets = roomPets.length > 0 ? roomPets : playerPets;
+
+      console.log(
+        `📊 Found ${allPets.length} pets for ${player.name} (${roomPets.length} from room, ${playerPets.length} from player)`,
+      );
+
+      // Send pets state sync
+      client.send('pets-state-sync', {
+        success: true,
+        pets: allPets.map((pet: any) => ({
+          id: pet.id,
+          ownerId: pet.ownerId,
+          petType: pet.petType,
+          hunger: pet.hunger || 0,
+          happiness: pet.happiness || 0,
+          cleanliness: pet.cleanliness || 0,
+          lastUpdated: pet.lastUpdated || new Date(),
+        })),
+        totalPets: allPets.length,
+      });
+
+      console.log(
+        `✅ Pets state sent to ${player.name}: ${allPets.length} pets`,
+      );
+    } catch (error) {
+      console.error(`❌ Error getting pets state for ${player.name}:`, error);
+
+      client.send('pets-state-sync', {
+        success: false,
+        message: 'Failed to get pets state',
+        pets: [],
+        error: error.message,
+      });
+    }
   }
 }

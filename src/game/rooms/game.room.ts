@@ -76,6 +76,7 @@ export class GameRoom extends Room<GameRoomState> {
       'request_player_state',
       PlayerEmitter.requestPlayerState(this),
     );
+    this.onMessage('request_pets_state', PlayerEmitter.requestPetsState(this));
     this.onMessage('get_profile', PlayerEmitter.getProfile(this));
     this.onMessage('claim_daily_reward', PlayerEmitter.claimDailyReward(this));
     this.onMessage('update_settings', PlayerEmitter.updateSettings(this));

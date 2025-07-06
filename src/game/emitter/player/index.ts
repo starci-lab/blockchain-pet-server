@@ -82,6 +82,20 @@ export class PlayerEmitter {
     };
   }
 
+  // Request pets state handler - emit to PlayerService or PetService
+  static requestPetsState(room: any) {
+    return (client: Client, data: any) => {
+      console.log(`🐕 [Emitter] Request pets state from ${client.sessionId}`);
+
+      eventBus.emit('player.get_pets_state', {
+        sessionId: client.sessionId,
+        room,
+        client,
+        data,
+      });
+    };
+  }
+
   // Helper methods for validation (can be used by services)
   static validatePlayer(room: any, sessionId: string): any {
     const player = room.state.players.get(sessionId);
