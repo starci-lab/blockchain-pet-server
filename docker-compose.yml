@@ -23,6 +23,21 @@ services:
     networks:
       - colyseus-network
 
+  app:
+    build: .
+    container_name: colyseus_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - '3001:3001'
+      - '3002:3002'
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - colyseus-network
+
 volumes:
   redis_data:
   mongo_data:
