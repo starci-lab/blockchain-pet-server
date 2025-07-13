@@ -13,8 +13,8 @@ async function bootstrap() {
 
   // Enable CORS for client connections
   app.enableCors({
-    origin: true,
-    credentials: true,
+    origin: '*', // Cho phép mọi domain gọi
+    credentials: false, // Phải tắt nếu dùng '*'
   });
 
   // Serve static files

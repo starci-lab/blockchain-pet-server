@@ -1,3 +1,6 @@
+import { DatabaseService } from '../services/DatabaseService';
+import { Types } from 'mongoose';
+
 import { Pet } from '../schemas/game-room.schema';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { eventBus } from 'src/shared/even-bus';
@@ -26,6 +29,46 @@ export class PetService {
     eventBus.on('pet.clean', this.handleCleanPet.bind(this));
 
     console.log('✅ PetService event listeners initialized');
+  }
+
+  /**
+   * Fetch all pets of a user from the database by wallet address
+   * @param walletAddress string
+   * @returns Promise<Pet[]>
+   */
+  static async fetchPetsFromDatabase(walletAddress: string): Promise<Pet[]> {
+    if (!walletAddress) return [];
+    try {
+      const dbService = DatabaseService.getInstance();
+      if (!dbService) throw new Error('Database service not initialized');
+      const userModel = dbService.getUserModel();
+      const petModel = dbService.getPetModel();
+      // Find user by wallet address
+      const user = await userModel
+        .findOne({ wallet_address: walletAddress.toLowerCase() })
+        .exec();
+      if (!user) return [];
+      // Find all pets by user._id
+      const dbPets = await petModel
+        .find({ owner_id: user._id })
+        .populate('type')
+        .exec();
+      // Convert dbPets to game Pet objects
+      return dbPets.map((dbPet: any) => {
+        const pet = new Pet();
+        pet.id = dbPet._id.toString();
+        pet.ownerId = walletAddress;
+        pet.petType = dbPet.type?.name || 'chog';
+        pet.hunger = dbPet.stats?.hunger || 50;
+        pet.happiness = dbPet.stats?.happiness || 50;
+        pet.cleanliness = dbPet.stats?.cleanliness || 50;
+        pet.lastUpdated = Date.now();
+        return pet;
+      });
+    } catch (err) {
+      console.error('❌ Error fetching pets from DB:', err);
+      return [];
+    }
   }
 
   // Event handlers

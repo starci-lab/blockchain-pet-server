@@ -373,6 +373,8 @@ export class PlayerService {
 
       if (user) {
         console.log(`✅ User data fetched from DB:`, user.wallet_address);
+        console.log(user);
+        // console.log(`🐕 User has ${user.pets?.length || 0} pets in DB`);
         const petCount = await petModel
           .countDocuments({ owner_id: user._id })
           .exec();
@@ -386,9 +388,6 @@ export class PlayerService {
           wallet_address: user.wallet_address,
         };
       }
-
-      // Return default data for new users
-      return this.getDefaultUserData(sessionId);
     } catch (error) {
       console.warn(
         `⚠️ Failed to fetch user data from DB, using defaults:`,
@@ -418,6 +417,7 @@ export class PlayerService {
     addressWallet?: string;
   }): Promise<Player> {
     const userData = await this.fetchUserData(sessionId, addressWallet);
+    console.log('User data fetched:', userData);
 
     const player = new Player();
     player.sessionId = sessionId;

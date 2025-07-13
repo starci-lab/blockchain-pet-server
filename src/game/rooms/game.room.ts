@@ -124,7 +124,7 @@ export class GameRoom extends Room<GameRoomState> {
   }
 
   async onJoin(client: Client, options: any) {
-    console.log(`👋 Player joined: ${client.sessionId}`, options);
+    console.log(`👋 Player joined: ${client.sessionId} wallet:`, options);
 
     try {
       // Create new player using async service to fetch real user data
@@ -172,55 +172,30 @@ export class GameRoom extends Room<GameRoomState> {
     }
   }
 
-  private handleNewPlayerPets(client: Client, player: Player) {
-    // Auto-create starter pet for new player (only if they don't have any pets)
-    const existingPets = PetService.getPlayerPets(player);
-
-    console.log(
-      `🔍 [DEBUG] Player ${player.name} has ${existingPets.length} existing pets`,
-    );
-    console.log(`🔍 [DEBUG] Player pets collection:`, player.pets);
-
-    if (existingPets.length === 0) {
-      console.log(`🎯 [DEBUG] Creating starter pet for ${player.name}...`);
-
-      const starterPet = PetService.createStarterPet(
-        client.sessionId,
-        player.name,
+  private async handleNewPlayerPets(client: Client, player: Player) {
+    // Luôn đồng bộ danh sách pet từ DB, không tạo mới pet giả lập hoặc starter pet nữa
+    try {
+      const petsFromDb = await PetService.fetchPetsFromDatabase(
+        player.walletAddress,
       );
-
-      console.log(`🐕 [DEBUG] Starter pet created:`, starterPet.id);
-
-      // Add to room state
-      this.state.pets.set(starterPet.id, starterPet);
-
-      // Add to player's pets collection
       if (!player.pets) {
         player.pets = new MapSchema<Pet>();
-        console.log(`🔧 [DEBUG] Initialized player.pets collection`);
+      } else {
+        player.pets.clear();
       }
-      player.pets.set(starterPet.id, starterPet);
-
-      // Update player's pet count
-      player.totalPetsOwned = PetService.getPlayerPets(player).length;
-
-      console.log(`🎁 Starter pet created for new player ${player.name}`);
-
-      // Send updated pets state immediately after creating starter pet
-      const updatedPets = PetService.getPlayerPets(player);
-
-      client.send(
-        'pets-state-sync',
-        ResponseBuilder.petsStateSync(updatedPets),
-      );
-
+      // Chỉ đồng bộ danh sách pet từ DB
+      petsFromDb.forEach((pet: Pet) => {
+        this.state.pets.set(pet.id, pet);
+        player.pets.set(pet.id, pet);
+      });
+      player.totalPetsOwned = petsFromDb.length;
+      client.send('pets-state-sync', ResponseBuilder.petsStateSync(petsFromDb));
       console.log(
-        `📤 Sent pets-state-sync with ${updatedPets.length} pets to ${player.name}`,
+        `📤 Synced ${petsFromDb.length} pets from DB for ${player.name}`,
       );
-    } else {
-      console.log(
-        `🔄 Returning player ${player.name} has ${existingPets.length} existing pets`,
-      );
+    } catch (err) {
+      console.error(`❌ Failed to sync pets from DB for ${player.name}:`, err);
+      client.send('pets-state-sync', ResponseBuilder.petsStateSync([]));
     }
   }
 
