@@ -24,7 +24,7 @@ export class User {
 
   @Prop({
     type: Number,
-    default: 100,
+    default: 10000,
   })
   token_nom: number;
 
