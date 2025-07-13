@@ -3,6 +3,7 @@ export interface CreatePetData {
   x: number;
   y: number;
   petType?: string;
+  isBuyPet?: boolean; // Default to false if not provided
 }
 
 export interface PetActivityData {

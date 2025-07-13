@@ -28,7 +28,90 @@ export class PetService {
     // Listen for pet cleaning events
     eventBus.on('pet.clean', this.handleCleanPet.bind(this));
 
+    // Listen for pet buy events (mua pet mới)
+    eventBus.on('pet.buy', this.handleBuyPet.bind(this));
+
     console.log('✅ PetService event listeners initialized');
+  }
+  static async handleBuyPet(eventData: any) {
+    const { sessionId, petType, room, client } = eventData;
+    const player = room.state.players.get(sessionId);
+    if (!player) {
+      client.send('buy-pet-response', {
+        success: false,
+        message: 'Player not found',
+      });
+      return;
+    }
+
+    // Giá pet (có thể lấy từ config hoặc hardcode)
+    // const PET_PRICE = GAME_CONFIG.PETS.PRICE || 100;
+
+    const PET_PRICE = 50;
+    if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
+      client.send('buy-pet-response', {
+        success: false,
+        message: 'Not enough tokens',
+        currentTokens: player.tokens,
+      });
+      return;
+    }
+
+    try {
+      // Trừ token
+      player.tokens -= PET_PRICE;
+
+      // Lưu token mới vào DB
+      const dbService = DatabaseService.getInstance();
+      const userModel = dbService.getUserModel();
+      await userModel.updateOne(
+        { wallet_address: player.walletAddress.toLowerCase() },
+        { $inc: { tokens: -PET_PRICE } },
+      );
+      console.log('update token mua pet nè, player.tokens: ', player.tokens);
+
+      // Tạo pet mới trong DB
+      const petModel = dbService.getPetModel();
+      const user = await userModel
+        .findOne({ wallet_address: player.walletAddress.toLowerCase() })
+        .exec();
+      if (!user) throw new Error('User not found in DB');
+      const newPetDoc = await petModel.create({
+        owner_id: user._id,
+        type: petType,
+        stats: { hunger: 100, happiness: 100, cleanliness: 100 },
+      });
+      newPetDoc.save();
+
+      // Lấy lại danh sách pet mới nhất từ DB
+      const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress);
+      // Cập nhật state cho player
+      if (!player.pets) player.pets = new MapSchema<Pet>();
+      else player.pets.clear();
+      petsFromDb.forEach((pet: Pet) => {
+        room.state.pets.set(pet.id, pet);
+        player.pets.set(pet.id, pet);
+      });
+      player.totalPetsOwned = petsFromDb.length;
+
+      // Gửi response về client
+      client.send('buy-pet-response', {
+        success: true,
+        message: 'Mua pet thành công!',
+        currentTokens: player.tokens,
+        pets: petsFromDb,
+      });
+      console.log(
+        `✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`,
+      );
+    } catch (err) {
+      console.error('❌ Lỗi khi mua pet:', err);
+      client.send('buy-pet-response', {
+        success: false,
+        message: 'Lỗi khi mua pet',
+        currentTokens: player.tokens,
+      });
+    }
   }
 
   /**
@@ -72,12 +155,95 @@ export class PetService {
   }
 
   // Event handlers
-  static handleCreatePet(eventData: any) {
-    const { sessionId, petId, petType, room, client } = eventData;
+  /**
+   * Kết hợp logic mua pet vào createPet:
+   * Nếu eventData có isBuyPet=true thì thực hiện logic mua pet (trừ token, tạo pet DB, đồng bộ lại pet),
+   * ngược lại chỉ tạo pet local (legacy, không dùng nữa)
+   */
+  static async handleCreatePet(eventData: any) {
+    const { sessionId, petId, petType, room, client, isBuyPet } = eventData;
     const player = room.state.players.get(sessionId);
 
     if (!player) return;
 
+    // Nếu là luồng mua pet (isBuyPet=true), thực hiện logic mua pet chuẩn backend
+    if (isBuyPet) {
+      // Giá pet (có thể lấy từ config hoặc hardcode)
+      const PET_PRICE = 50;
+      if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
+        client.send('buy-pet-response', {
+          success: false,
+          message: 'Not enough tokens',
+          currentTokens: player.tokens,
+        });
+        return;
+      }
+      try {
+        // Trừ token
+        player.tokens -= PET_PRICE;
+
+        // Lưu token mới vào DB
+        const dbService = DatabaseService.getInstance();
+        const userModel = dbService.getUserModel();
+        await userModel.updateOne(
+          { wallet_address: player.walletAddress.toLowerCase() },
+          { $inc: { tokens: -PET_PRICE } },
+        );
+        // Tạo pet mới trong DB
+        const petModel = dbService.getPetModel();
+        //TODO: find by type pet ID
+        const user = await userModel
+          .findOne({ wallet_address: player.walletAddress.toLowerCase() })
+          .exec();
+        if (!user) throw new Error('User not found in DB');
+        const newPetDoc = await petModel.create({
+          owner_id: user._id,
+          type: '6869e7a0bae4412d2195d11c',
+          stats: { hunger: 100, happiness: 100, cleanliness: 100 },
+        });
+        newPetDoc.save();
+
+        // Lấy lại danh sách pet mới nhất từ DB
+        const petsFromDb = await this.fetchPetsFromDatabase(
+          player.walletAddress,
+        );
+        // Cập nhật state cho player
+        if (!player.pets) player.pets = new MapSchema<Pet>();
+        else player.pets.clear();
+        petsFromDb.forEach((pet: Pet) => {
+          room.state.pets.set(pet.id, pet);
+          player.pets.set(pet.id, pet);
+        });
+        player.totalPetsOwned = petsFromDb.length;
+
+        // Gửi response về client
+        client.send('buy-pet-response', {
+          success: true,
+          message: 'Mua pet thành công!',
+          currentTokens: player.tokens,
+          pets: petsFromDb,
+        });
+        room.loggingService.logStateChange('PET_BOUGHT', {
+          petType,
+          ownerId: sessionId,
+          ownerName: player.name,
+          totalPets: player.totalPetsOwned,
+        });
+        console.log(
+          `✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`,
+        );
+      } catch (err) {
+        console.error('❌ Lỗi khi mua pet:', err);
+        client.send('buy-pet-response', {
+          success: false,
+          message: 'Lỗi khi mua pet',
+          currentTokens: player.tokens,
+        });
+      }
+      return;
+    }
+
+    // Legacy: tạo pet local (không dùng nữa, chỉ fallback nếu cần)
     console.log(`🐕 [Service] Creating pet ${petId} for ${player.name}`);
 
     const pet = this.createPet(petId, sessionId, petType);

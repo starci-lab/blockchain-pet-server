@@ -17,6 +17,7 @@ import { LoggingService } from 'src/game/handlers/LoggingService';
 import { PlayerService } from 'src/game/handlers/PlayerService';
 import { PetService } from 'src/game/handlers/PetService';
 import { InventoryService } from 'src/game/handlers/InventoryService';
+import { ConsoleLogger } from '@nestjs/common';
 
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS; // Single player only
@@ -61,6 +62,8 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage('feed_pet', PetEmitters.feedPet(this));
     this.onMessage('play_with_pet', PetEmitters.playWithPet(this));
     this.onMessage('clean_pet', PetEmitters.cleanPet(this));
+    // Buy pet event (mua pet mới)
+    this.onMessage('buy_pet', PetEmitters.buyPet(this));
 
     // Food emitters (emit events to InventoryService)
     this.onMessage('buy_food', FoodEmitters.purchaseItem(this));
@@ -173,10 +176,13 @@ export class GameRoom extends Room<GameRoomState> {
   }
 
   private async handleNewPlayerPets(client: Client, player: Player) {
-    // Luôn đồng bộ danh sách pet từ DB, không tạo mới pet giả lập hoặc starter pet nữa
+    console.log('🐾 Handling new player pets for:', player.name);
     try {
       const petsFromDb = await PetService.fetchPetsFromDatabase(
         player.walletAddress,
+      );
+      console.log(
+        `🐾 Found ${petsFromDb.length} pets for ${player.name} in DB`,
       );
       if (!player.pets) {
         player.pets = new MapSchema<Pet>();
