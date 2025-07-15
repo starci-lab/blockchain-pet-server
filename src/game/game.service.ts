@@ -12,9 +12,13 @@ import {
   createRedisDriver,
 } from './config/redis.config';
 import * as http from 'http';
+import { PlayerService } from './handlers/PlayerService';
+import { InventoryService } from './handlers/InventoryService';
+import { PetService } from './handlers/PetService';
 
 @Injectable()
 export class GameService implements OnModuleInit, OnApplicationShutdown {
+  private static servicesInitialized = false;
   private gameServer: Server;
 
   constructor() {
@@ -70,8 +74,9 @@ export class GameService implements OnModuleInit, OnApplicationShutdown {
     // Create Colyseus server
     this.gameServer = new Server(serverOptions);
 
-    // Define default game room
-    this.gameServer.define('game', GameRoom);
+    // Define room types
+    this.gameServer.define('single_player', GameRoom, { maxClients: 1 });
+    this.gameServer.define('multiplayer', GameRoom, { maxClients: 10 });
 
     console.log('✅ Game Service created with server');
     return this.gameServer;
@@ -89,7 +94,18 @@ export class GameService implements OnModuleInit, OnApplicationShutdown {
   }
 
   onModuleInit() {
-    console.log('🚀 Game Service module initialized');
+    // Khởi tạo services Global - 1 lần duy nhất cho toàn server
+    // singleton mà t đang sợ cái multi player, mà nãy t thấy m có config maxClients = 1 :)))))))))))), đọc thấy cũng hợp lý
+    if (!GameService.servicesInitialized) {
+      console.log('Initializing GLOBAL game services...');
+
+      PlayerService.initializeEventListeners();
+      InventoryService.initializeEventListeners();
+      PetService.initializeEventListeners();
+
+      GameService.servicesInitialized = true;
+      console.log('Global services initialized - ready for ALL rooms');
+    }
   }
 
   onApplicationShutdown(signal?: string) {
