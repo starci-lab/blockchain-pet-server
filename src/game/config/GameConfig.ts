@@ -12,6 +12,10 @@ export const GAME_CONFIG = {
     DEFAULT_SPEED: 40,
     DEFAULT_POSITION: { x: 400, y: 300 },
     DEFAULT_TYPE: 'chog',
+    HUNGER_MAX: 100,
+    CLEANLINESS_MAX: 100,
+    HAPPINESS_MAX: 100,
+    HUNGER_ALLOW_EAT: 80,
   },
 
   ECONOMY: {

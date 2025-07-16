@@ -93,4 +93,20 @@ export class PetEmitters {
       });
     };
   }
+
+  static eatedFood(room: any) {
+    return (
+      client: Client,
+      data: { hunger_level: number; pet_id: string; owner_id: string },
+    ) => {
+      // Emit event to PetService for processing
+      eventBus.emit('pet.eated_food', {
+        sessionId: client.sessionId,
+        petId: data.pet_id,
+        hungerLevel: data.hunger_level,
+        room,
+        client,
+      });
+    };
+  }
 }

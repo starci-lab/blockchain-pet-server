@@ -7,6 +7,7 @@ import { eventBus } from 'src/shared/even-bus';
 import { ResponseBuilder } from '../utils/ResponseBuilder';
 import { InventoryService } from './InventoryService';
 import { MapSchema } from '@colyseus/schema';
+import { PetStatus } from 'src/api/pet/schemas/pet.schema';
 
 export class PetService {
   // Initialize event listeners
@@ -30,6 +31,9 @@ export class PetService {
 
     // Listen for pet buy events (mua pet mới)
     eventBus.on('pet.buy', this.handleBuyPet.bind(this));
+
+    // Listen for pet eated food events
+    eventBus.on('pet.eated_food', this.handleEatedFood.bind(this));
 
     console.log('✅ PetService event listeners initialized');
   }
@@ -626,6 +630,98 @@ export class PetService {
       });
     }
     return playerPets;
+  }
+
+  static async handleEatedFood(eventData: any) {
+    const { sessionId, petId, room, client, hungerLevel } = eventData;
+    const player = room.state.players.get(sessionId);
+    const pet = room.state.pets.get(petId);
+
+    if (!player || !pet || pet.owner_id !== player.owner_id) {
+      console.log(`❌ Eated food failed - invalid player/pet or ownership`);
+      client.send('action-response', {
+        success: false,
+        action: 'eated_food',
+        message: 'Cannot eated food',
+      });
+      return;
+    }
+
+    // Increase hunger level
+    try {
+      // Cập nhật DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
+
+      let hunger = +pet.hunger + Number(hungerLevel);
+      if (hunger > GAME_CONFIG.PETS.HUNGER_MAX) {
+        client.send('action-response', {
+          success: false,
+          action: 'eated_food',
+          message: 'Cannot eated: pet hunger is full',
+        });
+        return;
+      }
+      if (hunger > 100) {
+        hunger = 100;
+      }
+
+      const updatedPet = await petModel.findByIdAndUpdate(
+        {
+          _id: petId,
+          status: PetStatus.Active,
+          'stats.hunger': { $lte: GAME_CONFIG.PETS.HUNGER_ALLOW_EAT },
+        },
+        {
+          $set: {
+            'stats.hunger': hunger,
+          },
+        },
+      );
+
+      if (!updatedPet) {
+        client.send('action-response', {
+          success: false,
+          action: 'eated_food',
+          message: 'Cannot eated: pet not found or not active',
+        });
+        return;
+      }
+
+      // Cập nhật lại state
+      pet.hunger = hunger;
+      pet.lastUpdated = Date.now();
+
+      // Cập nhật player pets collection
+      if (player.pets && player.pets.has(petId)) {
+        const playerPet = player.pets.get(petId);
+        if (playerPet) {
+          playerPet.hunger = hunger;
+          playerPet.lastUpdated = Date.now();
+        }
+      }
+
+      // Cập nhận room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      client.send('action-response', {
+        success: true,
+        action: 'eated_food',
+        message: 'Eated food',
+      });
+
+      return;
+    } catch (error) {
+      console.error('❌ Lỗi khi mua pet:', error);
+      client.send('buy-pet-response', {
+        success: false,
+        message: 'Lỗi khi mua pet',
+        currentTokens: player.tokens,
+      });
+    }
+    return;
   }
 
   // Get pet stats summary
