@@ -38,6 +38,9 @@ export class PetService {
     // Listen for pet cleaned events
     eventBus.on('pet.cleaned', this.handleCleanedPet.bind(this));
 
+    // Listen for pet played events
+    eventBus.on('pet.played', this.handlePlayedPet.bind(this));
+
     console.log('✅ PetService event listeners initialized');
   }
   static async handleBuyPet(eventData: any) {
@@ -635,23 +638,24 @@ export class PetService {
     return playerPets;
   }
 
+  // TODO: New code
   static async handleEatedFood(eventData: any) {
-    const { sessionId, petId, room, client, hungerLevel } = eventData;
-    const player = room.state.players.get(sessionId);
-    const pet = room.state.pets.get(petId);
-
-    if (!player || !pet || pet.owner_id !== player.owner_id) {
-      console.log(`❌ Eated food failed - invalid player/pet or ownership`);
-      client.send('action-response', {
-        success: false,
-        action: 'eated_food',
-        message: 'Cannot eated food',
-      });
-      return;
-    }
-
-    // Increase hunger level
     try {
+      const { sessionId, petId, room, client, hungerLevel } = eventData;
+      const player = room.state.players.get(sessionId);
+      const pet = room.state.pets.get(petId);
+
+      if (!player || !pet || pet.owner_id !== player.owner_id) {
+        console.log(`❌ Eated food failed - invalid player/pet or ownership`);
+        client.send('action-response', {
+          success: false,
+          action: 'eated_food',
+          message: 'Cannot eated food',
+        });
+        return;
+      }
+
+      // Increase hunger level
       // Cập nhật DB
       const dbService = DatabaseService.getInstance();
       const petModel = dbService.getPetModel();
@@ -727,76 +731,169 @@ export class PetService {
     return;
   }
 
+  // TODO: New code
   static async handleCleanedPet(eventData: any) {
-    const { sessionId, petId, room, client, cleanlinessLevel } = eventData;
-    const player = room.state.players.get(sessionId);
-    const pet = room.state.pets.get(petId);
+    try {
+      const { sessionId, petId, room, client, cleanlinessLevel } = eventData;
+      const player = room.state.players.get(sessionId);
+      const pet = room.state.pets.get(petId);
 
-    if (!player || !pet || player.owner_id !== pet.owner_id) {
-      console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`);
-      client.send('action-response', {
-        success: false,
-        action: 'cleaned_pet',
-        message: 'Cannot cleaned pet',
-      });
-      return;
-    }
+      if (!player || !pet || player.owner_id !== pet.owner_id) {
+        console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`);
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned pet',
+        });
+        return;
+      }
 
-    // Cập nhật DB
-    const dbService = DatabaseService.getInstance();
-    const petModel = dbService.getPetModel();
+      // Cập nhật DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
 
-    if (pet.cleanliness > GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN) {
-      client.send('action-response', {
-        success: false,
-        action: 'cleaned_pet',
-        message: 'Cannot cleaned: pet cleanliness is full',
-      });
-      return;
-    }
+      if (pet.cleanliness > GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN) {
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned: pet cleanliness is full',
+        });
+        return;
+      }
 
-    console.log(12312331, pet.cleanliness, cleanlinessLevel);
+      let cleanliness = +pet.cleanliness + Number(cleanlinessLevel);
+      if (cleanliness > 100) {
+        cleanliness = 100;
+      }
 
-    let cleanliness = +pet.cleanliness + Number(cleanlinessLevel);
-    if (cleanliness > 100) {
-      cleanliness = 100;
-    }
-
-    const updatedPet = await petModel.findByIdAndUpdate(
-      {
-        _id: petId,
-        status: PetStatus.Active,
-      },
-      {
-        $set: {
-          'stats.cleanliness': cleanliness,
+      const updatedPet = await petModel.findByIdAndUpdate(
+        {
+          _id: petId,
+          status: PetStatus.Active,
         },
-      },
-    );
+        {
+          $set: {
+            'stats.cleanliness': cleanliness,
+          },
+        },
+      );
 
-    if (!updatedPet) {
+      if (!updatedPet) {
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned: pet not found or not active',
+        });
+        return;
+      }
+
+      // Cập nhật lại state
+      pet.cleanliness = cleanliness;
+      pet.lastUpdated = Date.now();
+
+      // Cập nhận room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      client.send('action-response', {
+        success: true,
+        action: 'cleaned_pet',
+        message: 'Cleaned pet',
+      });
+
+      return;
+    } catch (error) {
+      console.error('❌ Lỗi khi rửa pet:', error);
       client.send('action-response', {
         success: false,
         action: 'cleaned_pet',
         message: 'Cannot cleaned: pet not found or not active',
       });
+    }
+  }
+  // TODO: New code
+  static async handlePlayedPet(eventData: any) {
+    try {
+      const { sessionId, petId, room, client, happinessLevel } = eventData;
+      const player = room.state.players.get(sessionId);
+      const pet = room.state.pets.get(petId);
+
+      if (!player || !pet || player.owner_id !== pet.owner_id) {
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned: pet cleanliness is full',
+        });
+        return;
+      }
+
+      // Cập nhật DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
+
+      // Check if pet is allowed to play
+      if (
+        Number(pet.happiness) >= Number(GAME_CONFIG.PETS.HAPPINESS_ALLOW_PLAY)
+      ) {
+        client.send('action-response', {
+          success: false,
+          action: 'played_pet',
+          message: 'Cannot played: pet happiness is full',
+        });
+        return;
+      }
+
+      let happiness = +pet.happiness + Number(happinessLevel);
+      if (happiness > 100) {
+        happiness = 100;
+      }
+
+      const updatedPet = await petModel.findByIdAndUpdate(
+        {
+          _id: petId,
+          status: PetStatus.Active,
+        },
+        {
+          $set: {
+            'stats.happiness': happiness,
+          },
+        },
+      );
+
+      if (!updatedPet) {
+        client.send('action-response', {
+          success: false,
+          action: 'played_pet',
+          message: 'Cannot played: pet not found or not active',
+        });
+        return;
+      }
+
+      // Cập nhật lại state
+      pet.happiness = happiness;
+      pet.lastUpdated = Date.now();
+
+      // Cập nhận room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      client.send('action-response', {
+        success: true,
+        action: 'played_pet',
+        message: 'Played pet',
+      });
+
       return;
+    } catch (error) {
+      console.error('❌ Lỗi khi chơi với pet:', error);
+      client.send('action-response', {
+        success: false,
+        action: 'played_pet',
+        message: 'Cannot played: pet not found or not active',
+      });
     }
-
-    // Cập nhật lại state
-    pet.cleanliness = cleanliness;
-    pet.lastUpdated = Date.now();
-
-    // Cập nhận room state
-    if (room.state.pets.has(petId)) {
-      room.state.pets.set(petId, pet);
-    }
-
-    client.send('action-response', {
-      success: true,
-      action: 'cleaned_pet',
-      message: 'Cleaned pet',
-    });
     return;
   }
 

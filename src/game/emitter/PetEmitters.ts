@@ -112,4 +112,20 @@ export class PetEmitters {
       });
     };
   }
+
+  static playedPet(room: any) {
+    return (
+      client: Client,
+      data: { happiness_level: number; pet_id: string; owner_id: string },
+    ) => {
+      // Emit event to PetService for processing
+      eventBus.emit('pet.played', {
+        sessionId: client.sessionId,
+        petId: data.pet_id,
+        happinessLevel: data.happiness_level,
+        room,
+        client,
+      });
+    };
+  }
 }
