@@ -640,8 +640,8 @@ export class PetService {
 
   // TODO: New code
   static async handleEatedFood(eventData: any) {
+    const { sessionId, petId, room, client, hungerLevel } = eventData;
     try {
-      const { sessionId, petId, room, client, hungerLevel } = eventData;
       const player = room.state.players.get(sessionId);
       const pet = room.state.pets.get(petId);
 
@@ -724,8 +724,7 @@ export class PetService {
       console.error('❌ Lỗi khi mua pet:', error);
       client.send('buy-pet-response', {
         success: false,
-        message: 'Lỗi khi mua pet',
-        currentTokens: player.tokens,
+        message: 'Lỗi khi mua food pet',
       });
     }
     return;
@@ -733,8 +732,8 @@ export class PetService {
 
   // TODO: New code
   static async handleCleanedPet(eventData: any) {
+    const { sessionId, petId, room, client, cleanlinessLevel } = eventData;
     try {
-      const { sessionId, petId, room, client, cleanlinessLevel } = eventData;
       const player = room.state.players.get(sessionId);
       const pet = room.state.pets.get(petId);
 
@@ -814,8 +813,8 @@ export class PetService {
   }
   // TODO: New code
   static async handlePlayedPet(eventData: any) {
+    const { sessionId, petId, room, client, happinessLevel } = eventData;
     try {
-      const { sessionId, petId, room, client, happinessLevel } = eventData;
       const player = room.state.players.get(sessionId);
       const pet = room.state.pets.get(petId);
 
