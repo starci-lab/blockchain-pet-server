@@ -60,8 +60,8 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage('remove_pet', PetEmitters.removePet(this));
     this.onMessage('feed_pet', PetEmitters.feedPet(this));
     this.onMessage('play_with_pet', PetEmitters.playWithPet(this));
-    this.onMessage('clean_pet', PetEmitters.cleanPet(this));
     this.onMessage('eated_food', PetEmitters.eatedFood(this));
+    this.onMessage('cleaned_pet', PetEmitters.cleanedPet(this));
     // Buy pet event (mua pet mới)
     this.onMessage('buy_pet', PetEmitters.buyPet(this));
 

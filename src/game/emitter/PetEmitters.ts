@@ -80,20 +80,6 @@ export class PetEmitters {
     };
   }
 
-  static cleanPet(room: any) {
-    return (client: Client, data: { petId: string }) => {
-      console.log(`🧼 [Handler] Clean pet request:`, data);
-
-      // Emit event to PetService for processing
-      eventBus.emit('pet.clean', {
-        sessionId: client.sessionId,
-        petId: data.petId,
-        room,
-        client,
-      });
-    };
-  }
-
   static eatedFood(room: any) {
     return (
       client: Client,
@@ -104,6 +90,23 @@ export class PetEmitters {
         sessionId: client.sessionId,
         petId: data.pet_id,
         hungerLevel: data.hunger_level,
+        room,
+        client,
+      });
+    };
+  }
+
+  static cleanedPet(room: any) {
+    console.log('cleanedPet', room);
+    return (
+      client: Client,
+      data: { cleanliness_level: number; pet_id: string; owner_id: string },
+    ) => {
+      // Emit event to PetService for processing
+      eventBus.emit('pet.cleaned', {
+        sessionId: client.sessionId,
+        petId: data.pet_id,
+        cleanlinessLevel: data.cleanliness_level,
         room,
         client,
       });
