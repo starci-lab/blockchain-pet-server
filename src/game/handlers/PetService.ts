@@ -152,9 +152,9 @@ export class PetService {
         pet.id = dbPet._id.toString();
         pet.ownerId = walletAddress;
         pet.petType = dbPet.type?.name || 'chog';
-        pet.hunger = dbPet.stats?.hunger || 50;
-        pet.happiness = dbPet.stats?.happiness || 50;
-        pet.cleanliness = dbPet.stats?.cleanliness || 50;
+        pet.hunger = dbPet.stats?.hunger ?? 50;
+        pet.happiness = dbPet.stats?.happiness ?? 50;
+        pet.cleanliness = dbPet.stats?.cleanliness ?? 50;
         pet.lastUpdated = Date.now();
         return pet;
       });
