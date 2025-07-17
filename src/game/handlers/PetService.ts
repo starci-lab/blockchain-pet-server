@@ -655,10 +655,6 @@ export class PetService {
         return;
       }
 
-      // Increase hunger level
-      // Cập nhật DB
-      const dbService = DatabaseService.getInstance();
-      const petModel = dbService.getPetModel();
       // Check if pet hunger is allowed to eat
       if (Number(pet.hunger) > Number(GAME_CONFIG.PETS.HUNGER_ALLOW_EAT)) {
         client.send('action-response', {
@@ -669,10 +665,34 @@ export class PetService {
         return;
       }
 
+      // Increase hunger level
       let hunger = +pet.hunger + Number(hungerLevel);
       if (hunger > 100) {
         hunger = 100;
       }
+
+      // Update colesyus state
+      pet.hunger = hunger;
+      pet.lastUpdated = Date.now();
+
+      // Update colesyus player pets collection
+      if (player.pets && player.pets.has(petId)) {
+        const playerPet = player.pets.get(petId);
+        // TODO: Check if pet is active or no ????
+        if (playerPet) {
+          playerPet.hunger = hunger;
+          playerPet.lastUpdated = Date.now();
+        }
+      }
+
+      // Update colesyus room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      // Update DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
 
       const updatedPet = await petModel.findByIdAndUpdate(
         {
@@ -695,24 +715,6 @@ export class PetService {
         return;
       }
 
-      // Cập nhật lại state
-      pet.hunger = hunger;
-      pet.lastUpdated = Date.now();
-
-      // Cập nhật player pets collection
-      if (player.pets && player.pets.has(petId)) {
-        const playerPet = player.pets.get(petId);
-        if (playerPet) {
-          playerPet.hunger = hunger;
-          playerPet.lastUpdated = Date.now();
-        }
-      }
-
-      // Cập nhận room state
-      if (room.state.pets.has(petId)) {
-        room.state.pets.set(petId, pet);
-      }
-
       client.send('action-response', {
         success: true,
         action: 'eated_food',
@@ -721,10 +723,10 @@ export class PetService {
 
       return;
     } catch (error) {
-      console.error('❌ Lỗi khi mua pet:', error);
+      console.error('❌ pet eated food error:', error);
       client.send('buy-pet-response', {
         success: false,
-        message: 'Lỗi khi mua food pet',
+        message: 'pet eated food error',
       });
     }
     return;
@@ -747,10 +749,7 @@ export class PetService {
         return;
       }
 
-      // Cập nhật DB
-      const dbService = DatabaseService.getInstance();
-      const petModel = dbService.getPetModel();
-
+      // Check if pet cleanliness is allowed to clean
       if (pet.cleanliness > GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN) {
         client.send('action-response', {
           success: false,
@@ -760,10 +759,34 @@ export class PetService {
         return;
       }
 
+      // Increase cleanliness level
       let cleanliness = +pet.cleanliness + Number(cleanlinessLevel);
       if (cleanliness > 100) {
         cleanliness = 100;
       }
+
+      // Update colesyus state
+      pet.cleanliness = cleanliness;
+      pet.lastUpdated = Date.now();
+
+      // Update colesyus player pets collection
+      if (player.pets && player.pets.has(petId)) {
+        // TODO: Check if pet is active or no ????
+        const playerPet = player.pets.get(petId);
+        if (playerPet) {
+          playerPet.cleanliness = cleanliness;
+          playerPet.lastUpdated = Date.now();
+        }
+      }
+
+      // Update colesyus room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      // Update DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
 
       const updatedPet = await petModel.findByIdAndUpdate(
         {
@@ -786,15 +809,6 @@ export class PetService {
         return;
       }
 
-      // Cập nhật lại state
-      pet.cleanliness = cleanliness;
-      pet.lastUpdated = Date.now();
-
-      // Cập nhận room state
-      if (room.state.pets.has(petId)) {
-        room.state.pets.set(petId, pet);
-      }
-
       client.send('action-response', {
         success: true,
         action: 'cleaned_pet',
@@ -803,7 +817,7 @@ export class PetService {
 
       return;
     } catch (error) {
-      console.error('❌ Lỗi khi rửa pet:', error);
+      console.error('❌ pet cleaned error:', error);
       client.send('action-response', {
         success: false,
         action: 'cleaned_pet',
@@ -811,6 +825,7 @@ export class PetService {
       });
     }
   }
+
   // TODO: New code
   static async handlePlayedPet(eventData: any) {
     const { sessionId, petId, room, client, happinessLevel } = eventData;
@@ -827,13 +842,9 @@ export class PetService {
         return;
       }
 
-      // Cập nhật DB
-      const dbService = DatabaseService.getInstance();
-      const petModel = dbService.getPetModel();
-
       // Check if pet is allowed to play
       if (
-        Number(pet.happiness) >= Number(GAME_CONFIG.PETS.HAPPINESS_ALLOW_PLAY)
+        Number(pet.happiness) > Number(GAME_CONFIG.PETS.HAPPINESS_ALLOW_PLAY)
       ) {
         client.send('action-response', {
           success: false,
@@ -843,10 +854,33 @@ export class PetService {
         return;
       }
 
+      // Increase happiness level
       let happiness = +pet.happiness + Number(happinessLevel);
       if (happiness > 100) {
         happiness = 100;
       }
+
+      // Update colesyus state
+      pet.happiness = happiness;
+      pet.lastUpdated = Date.now();
+
+      // Update colesyus player pets collection
+      if (player.pets && player.pets.has(petId)) {
+        // TODO: Check if pet is active or no ????
+        const playerPet = player.pets.get(petId);
+        if (playerPet) {
+          playerPet.happiness = happiness;
+          playerPet.lastUpdated = Date.now();
+        }
+      }
+      // Update colesyus room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      // Cập nhật DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
 
       const updatedPet = await petModel.findByIdAndUpdate(
         {
@@ -867,15 +901,6 @@ export class PetService {
           message: 'Cannot played: pet not found or not active',
         });
         return;
-      }
-
-      // Cập nhật lại state
-      pet.happiness = happiness;
-      pet.lastUpdated = Date.now();
-
-      // Cập nhận room state
-      if (room.state.pets.has(petId)) {
-        room.state.pets.set(petId, pet);
       }
 
       client.send('action-response', {
