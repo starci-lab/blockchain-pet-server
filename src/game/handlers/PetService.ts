@@ -7,6 +7,7 @@ import { eventBus } from 'src/shared/even-bus';
 import { ResponseBuilder } from '../utils/ResponseBuilder';
 import { InventoryService } from './InventoryService';
 import { MapSchema } from '@colyseus/schema';
+import { PetStatus } from 'src/api/pet/schemas/pet.schema';
 
 export class PetService {
   // Initialize event listeners
@@ -30,6 +31,15 @@ export class PetService {
 
     // Listen for pet buy events (mua pet mới)
     eventBus.on('pet.buy', this.handleBuyPet.bind(this));
+
+    // Listen for pet eated food events
+    eventBus.on('pet.eated_food', this.handleEatedFood.bind(this));
+
+    // Listen for pet cleaned events
+    eventBus.on('pet.cleaned', this.handleCleanedPet.bind(this));
+
+    // Listen for pet played events
+    eventBus.on('pet.played', this.handlePlayedPet.bind(this));
 
     console.log('✅ PetService event listeners initialized');
   }
@@ -142,9 +152,9 @@ export class PetService {
         pet.id = dbPet._id.toString();
         pet.ownerId = walletAddress;
         pet.petType = dbPet.type?.name || 'chog';
-        pet.hunger = dbPet.stats?.hunger || 50;
-        pet.happiness = dbPet.stats?.happiness || 50;
-        pet.cleanliness = dbPet.stats?.cleanliness || 50;
+        pet.hunger = dbPet.stats?.hunger ?? 50;
+        pet.happiness = dbPet.stats?.happiness ?? 50;
+        pet.cleanliness = dbPet.stats?.cleanliness ?? 50;
         pet.lastUpdated = Date.now();
         return pet;
       });
@@ -626,6 +636,289 @@ export class PetService {
       });
     }
     return playerPets;
+  }
+
+  // TODO: New code
+  static async handleEatedFood(eventData: any) {
+    const { sessionId, petId, room, client, hungerLevel } = eventData;
+    try {
+      const player = room.state.players.get(sessionId);
+      const pet = room.state.pets.get(petId);
+
+      if (!player || !pet || pet.owner_id !== player.owner_id) {
+        console.log(`❌ Eated food failed - invalid player/pet or ownership`);
+        client.send('action-response', {
+          success: false,
+          action: 'eated_food',
+          message: 'Cannot eated food',
+        });
+        return;
+      }
+
+      // Check if pet hunger is allowed to eat
+      if (Number(pet.hunger) > Number(GAME_CONFIG.PETS.HUNGER_ALLOW_EAT)) {
+        client.send('action-response', {
+          success: false,
+          action: 'eated_food',
+          message: 'Cannot eated: pet hunger is full',
+        });
+        return;
+      }
+
+      // Increase hunger level
+      let hunger = +pet.hunger + Number(hungerLevel);
+      if (hunger > 100) {
+        hunger = 100;
+      }
+
+      // Update colesyus state
+      pet.hunger = hunger;
+      pet.lastUpdated = Date.now();
+
+      // Update colesyus player pets collection
+      if (player.pets && player.pets.has(petId)) {
+        const playerPet = player.pets.get(petId);
+        // TODO: Check if pet is active or no ????
+        if (playerPet) {
+          playerPet.hunger = hunger;
+          playerPet.lastUpdated = Date.now();
+        }
+      }
+
+      // Update colesyus room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      // Update DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
+
+      const updatedPet = await petModel.findByIdAndUpdate(
+        {
+          _id: petId,
+          status: PetStatus.Active,
+        },
+        {
+          $set: {
+            'stats.hunger': hunger,
+          },
+        },
+      );
+
+      if (!updatedPet) {
+        client.send('action-response', {
+          success: false,
+          action: 'eated_food',
+          message: 'Cannot eated: pet not found or not active',
+        });
+        return;
+      }
+
+      client.send('action-response', {
+        success: true,
+        action: 'eated_food',
+        message: 'Eated food',
+      });
+
+      return;
+    } catch (error) {
+      console.error('❌ pet eated food error:', error);
+      client.send('buy-pet-response', {
+        success: false,
+        message: 'pet eated food error',
+      });
+    }
+    return;
+  }
+
+  // TODO: New code
+  static async handleCleanedPet(eventData: any) {
+    const { sessionId, petId, room, client, cleanlinessLevel } = eventData;
+    try {
+      const player = room.state.players.get(sessionId);
+      const pet = room.state.pets.get(petId);
+
+      if (!player || !pet || player.owner_id !== pet.owner_id) {
+        console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`);
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned pet',
+        });
+        return;
+      }
+
+      // Check if pet cleanliness is allowed to clean
+      if (pet.cleanliness > GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN) {
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned: pet cleanliness is full',
+        });
+        return;
+      }
+
+      // Increase cleanliness level
+      let cleanliness = +pet.cleanliness + Number(cleanlinessLevel);
+      if (cleanliness > 100) {
+        cleanliness = 100;
+      }
+
+      // Update colesyus state
+      pet.cleanliness = cleanliness;
+      pet.lastUpdated = Date.now();
+
+      // Update colesyus player pets collection
+      if (player.pets && player.pets.has(petId)) {
+        // TODO: Check if pet is active or no ????
+        const playerPet = player.pets.get(petId);
+        if (playerPet) {
+          playerPet.cleanliness = cleanliness;
+          playerPet.lastUpdated = Date.now();
+        }
+      }
+
+      // Update colesyus room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      // Update DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
+
+      const updatedPet = await petModel.findByIdAndUpdate(
+        {
+          _id: petId,
+          status: PetStatus.Active,
+        },
+        {
+          $set: {
+            'stats.cleanliness': cleanliness,
+          },
+        },
+      );
+
+      if (!updatedPet) {
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned: pet not found or not active',
+        });
+        return;
+      }
+
+      client.send('action-response', {
+        success: true,
+        action: 'cleaned_pet',
+        message: 'Cleaned pet',
+      });
+
+      return;
+    } catch (error) {
+      console.error('❌ pet cleaned error:', error);
+      client.send('action-response', {
+        success: false,
+        action: 'cleaned_pet',
+        message: 'Cannot cleaned: pet not found or not active',
+      });
+    }
+  }
+
+  // TODO: New code
+  static async handlePlayedPet(eventData: any) {
+    const { sessionId, petId, room, client, happinessLevel } = eventData;
+    try {
+      const player = room.state.players.get(sessionId);
+      const pet = room.state.pets.get(petId);
+
+      if (!player || !pet || player.owner_id !== pet.owner_id) {
+        client.send('action-response', {
+          success: false,
+          action: 'cleaned_pet',
+          message: 'Cannot cleaned: pet cleanliness is full',
+        });
+        return;
+      }
+
+      // Check if pet is allowed to play
+      if (
+        Number(pet.happiness) > Number(GAME_CONFIG.PETS.HAPPINESS_ALLOW_PLAY)
+      ) {
+        client.send('action-response', {
+          success: false,
+          action: 'played_pet',
+          message: 'Cannot played: pet happiness is full',
+        });
+        return;
+      }
+
+      // Increase happiness level
+      let happiness = +pet.happiness + Number(happinessLevel);
+      if (happiness > 100) {
+        happiness = 100;
+      }
+
+      // Update colesyus state
+      pet.happiness = happiness;
+      pet.lastUpdated = Date.now();
+
+      // Update colesyus player pets collection
+      if (player.pets && player.pets.has(petId)) {
+        // TODO: Check if pet is active or no ????
+        const playerPet = player.pets.get(petId);
+        if (playerPet) {
+          playerPet.happiness = happiness;
+          playerPet.lastUpdated = Date.now();
+        }
+      }
+      // Update colesyus room state
+      if (room.state.pets.has(petId)) {
+        room.state.pets.set(petId, pet);
+      }
+
+      // Cập nhật DB
+      const dbService = DatabaseService.getInstance();
+      const petModel = dbService.getPetModel();
+
+      const updatedPet = await petModel.findByIdAndUpdate(
+        {
+          _id: petId,
+          status: PetStatus.Active,
+        },
+        {
+          $set: {
+            'stats.happiness': happiness,
+          },
+        },
+      );
+
+      if (!updatedPet) {
+        client.send('action-response', {
+          success: false,
+          action: 'played_pet',
+          message: 'Cannot played: pet not found or not active',
+        });
+        return;
+      }
+
+      client.send('action-response', {
+        success: true,
+        action: 'played_pet',
+        message: 'Played pet',
+      });
+
+      return;
+    } catch (error) {
+      console.error('❌ Lỗi khi chơi với pet:', error);
+      client.send('action-response', {
+        success: false,
+        action: 'played_pet',
+        message: 'Cannot played: pet not found or not active',
+      });
+    }
+    return;
   }
 
   // Get pet stats summary
