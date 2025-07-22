@@ -1,6 +1,9 @@
 export type BullConfig = {
   name: string;
-  connection: {
-    host: string;
+  prefix: string;
+  streams: {
+    events: {
+      maxLen: number;
+    };
   };
 };
