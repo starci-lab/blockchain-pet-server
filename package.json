@@ -30,6 +30,7 @@
     "@colyseus/redis-presence": "^0.16.4",
     "@colyseus/schema": "^3.0.42",
     "@colyseus/ws-transport": "^0.16.5",
+    "@nestjs/bullmq": "^11.0.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
