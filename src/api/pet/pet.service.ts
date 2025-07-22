@@ -22,6 +22,14 @@ export class PetService {
     return this.petModel.find().populate('type').populate('owner_id').exec();
   }
 
+  async findActivePets() {
+    return this.petModel
+      .find({ status: PetStatus.Active })
+      .populate('type')
+      .populate('owner_id')
+      .exec();
+  }
+
   async findByOwner(ownerId: string) {
     return this.petModel
       .find({ owner_id: new Types.ObjectId(ownerId) })
@@ -97,5 +105,11 @@ export class PetService {
       );
       throw error; // Re-throw error to let caller handle it
     }
+  }
+
+  async updateStats(petId: string, petStats: any) {
+    return this.petModel
+      .findByIdAndUpdate(petId, { stats: petStats }, { new: true })
+      .exec();
   }
 }

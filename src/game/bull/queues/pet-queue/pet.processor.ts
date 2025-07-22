@@ -3,6 +3,7 @@ import { QUEUE_NAME } from '../../constants/queue.constant';
 import { PetService } from 'src/api/pet/pet.service';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import { calculateStatUpdate } from 'src/game/utils/timer';
 
 @Processor(QUEUE_NAME.UPDATE_PET_STATS)
 export class PetProcessor extends WorkerHost {
@@ -12,27 +13,52 @@ export class PetProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ petId: string }>) {
+  async process(job: Job) {
     try {
-      this.logger.log(`Processing job ${job.id} for pet ${job.data.petId}`);
+      this.logger.log(`Processing jobs ${job.id}`);
 
-      const pet = await this.petService.findOne(job.data.petId);
-      if (!pet) {
-        throw new Error(`Pet not found with id ${job.data.petId}`);
+      const pets = await this.petService.findActivePets();
+      if (!pets) {
+        throw new Error(`Pets not found`);
       }
 
-      // Here you should implement your pet stats update logic
-      // For example:
-      // await this.petService.updateStats(pet._id, {
-      //   hunger: calculateNewHunger(pet),
-      //   happiness: calculateNewHappiness(pet),
-      //   // etc...
-      // });
+      for (const pet of pets) {
+        const petId = pet._id as string;
+        const petStats = pet.stats;
 
-      this.logger.log(
-        `Successfully processed job ${job.id} for pet ${job.data.petId}`,
-      );
-      return pet;
+        const hungerUpdate = calculateStatUpdate(
+          petStats.last_update_hunger,
+          petStats.hunger,
+          2,
+        );
+
+        const happinessUpdate = calculateStatUpdate(
+          petStats.last_update_happiness,
+          petStats.happiness,
+          1,
+        );
+
+        const cleanlinessUpdate = calculateStatUpdate(
+          petStats.last_update_cleanliness,
+          petStats.cleanliness,
+          1,
+        );
+
+        const newPetStats = {
+          hunger: hungerUpdate.newStat,
+          happiness: happinessUpdate.newStat,
+          cleanliness: cleanlinessUpdate.newStat,
+          last_update_hunger: hungerUpdate.newLastUpdate,
+          last_update_happiness: happinessUpdate.newLastUpdate,
+          last_update_cleanliness: cleanlinessUpdate.newLastUpdate,
+        };
+
+        // Update pet stats
+        await this.petService.updateStats(petId, newPetStats);
+      }
+
+      this.logger.log(`Successfully processed job ${job.id}`);
+      return pets;
     } catch (error) {
       console.log('error at pet processor', error);
       throw error;

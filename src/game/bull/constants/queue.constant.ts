@@ -9,3 +9,7 @@ export const JOB_NAME = {
 export const PREFIX = {
   PET: 'pet',
 };
+
+export const JOB_ID = {
+  UPDATE_PET_STATS: 'update-pet-stats',
+};

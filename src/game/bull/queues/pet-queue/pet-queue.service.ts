@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PetService } from 'src/api/pet/pet.service';
-import { QUEUE_NAME } from '../../constants/queue.constant';
+import { JOB_ID, QUEUE_NAME } from '../../constants/queue.constant';
 import { Job, Queue } from 'bullmq';
 
 interface PetStatsJobData {
@@ -24,19 +24,16 @@ export class PetQueueService implements OnModuleInit {
 
   private async initializeUpdateStatsJobs() {
     try {
-      const pets = await this.petService.findAll();
-      for (const pet of pets) {
-        await this.addUpdateStatsJob(pet._id as string);
-      }
-      this.logger.log(`Initialized update stats jobs for ${pets.length} pets`);
+      await this.addUpdateStatsJob();
+      this.logger.log(`Initialized update stats pets jobs `);
     } catch (error) {
       this.logger.error('Failed to initialize update stats jobs', error);
     }
   }
 
-  async addUpdateStatsJob(petId: string) {
+  async addUpdateStatsJob() {
     try {
-      const jobId = `pet-stats-${petId}`;
+      const jobId = JOB_ID.UPDATE_PET_STATS;
 
       // Check if job already exists
       const existingJob = (await this.petQueue.getJob(jobId)) as
@@ -44,63 +41,46 @@ export class PetQueueService implements OnModuleInit {
         | undefined;
 
       if (existingJob) {
-        this.logger.debug(`Update stats job already exists for pet ${petId}`);
+        this.logger.debug(`Update stats job already exists`);
         return;
       }
 
       await this.petQueue.add(
         QUEUE_NAME.UPDATE_PET_STATS,
-        { petId },
+        {},
         {
           jobId,
           repeat: {
-            // Update every 5 minutes
-            every: 5 * 60 * 1000,
+            // Update every 1 hours
+            every: 60 * 60 * 1000,
           },
         },
       );
 
-      this.logger.log(`Added update stats job for pet ${petId}`);
+      this.logger.log(`Added update stats job`);
     } catch (error) {
-      this.logger.error(
-        `Failed to add update stats job for pet ${petId}`,
-        error,
-      );
+      this.logger.error(`Failed to add update stats job`, error);
       throw error;
     }
   }
 
-  async updatePetStats() {
+  async removeUpdateStatsJob() {
     try {
-      const pets = await this.petService.findAll();
-      this.logger.log(`Updating stats for ${pets.length} pets`);
-      return pets;
-    } catch (error: any) {
-      console.log('error at updatePetStats', error);
-      throw error;
-    }
-  }
-
-  async removeUpdateStatsJob(petId: string) {
-    try {
-      const jobId = `pet-stats-${petId}`;
+      const jobId = JOB_ID.UPDATE_PET_STATS;
       await this.petQueue.removeRepeatable(QUEUE_NAME.UPDATE_PET_STATS, {
         jobId,
-        every: 5 * 60 * 1000,
+        every: 60 * 60 * 1000,
       });
-      this.logger.log(`Removed update stats job for pet ${petId}`);
+      this.logger.log(`Removed update stats job`);
     } catch (error) {
-      this.logger.error(
-        `Failed to remove update stats job for pet ${petId}`,
-        error,
-      );
+      this.logger.error(`Failed to remove update stats job`, error);
       throw error;
     }
   }
 
   // Get job status
-  async getJobStatus(petId: string) {
-    const jobId = `pet-stats-${petId}`;
+  async getJobStatus() {
+    const jobId = JOB_ID.UPDATE_PET_STATS;
     const job = (await this.petQueue.getJob(jobId)) as
       | Job<PetStatsJobData>
       | undefined;

@@ -21,7 +21,14 @@ export class Pet {
   name: string;
 
   @Prop({
-    type: Object,
+    type: {
+      happiness: { type: Number, required: true },
+      last_update_happiness: { type: Date, required: true },
+      hunger: { type: Number, required: true },
+      last_update_hunger: { type: Date, required: true },
+      cleanliness: { type: Number, required: true },
+      last_update_cleanliness: { type: Date, required: true },
+    },
     required: true,
   })
   stats: PetStats;
