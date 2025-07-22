@@ -189,6 +189,11 @@ export class PlayerService {
             happiness: pet.stats?.happiness || 0,
             hunger: pet.stats?.hunger || 0,
             cleanliness: pet.stats?.cleanliness || 0,
+            last_update_happiness:
+              pet.stats?.last_update_happiness || new Date(),
+            last_update_hunger: pet.stats?.last_update_hunger || new Date(),
+            last_update_cleanliness:
+              pet.stats?.last_update_cleanliness || new Date(),
           },
           status: pet.status,
           createdAt: pet.createdAt || new Date(),

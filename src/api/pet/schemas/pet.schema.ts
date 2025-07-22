@@ -20,7 +20,10 @@ export class Pet {
   @Prop({ type: String })
   name: string;
 
-  @Prop({ type: Object, required: true })
+  @Prop({
+    type: Object,
+    required: true,
+  })
   stats: PetStats;
 
   @Prop({

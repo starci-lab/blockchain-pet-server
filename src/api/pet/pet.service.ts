@@ -56,13 +56,17 @@ export class PetService {
 
       if (!defaultPetType) {
         // Create default pet type if not exists
+        const now = new Date();
         defaultPetType = new this.petTypeModel({
           name: 'Chog',
           description: 'A cute starter pet',
           default_stats: {
             happiness: 90,
+            last_update_happiness: now,
             hunger: 90,
+            last_update_hunger: now,
             cleanliness: 90,
+            last_update_cleanliness: now,
           },
           stat_decay: {
             happiness: { min: 1, max: 2 },
@@ -79,11 +83,7 @@ export class PetService {
         owner_id: new Types.ObjectId(userId),
         type: defaultPetType._id,
         name: defaultPetType.name,
-        stats: {
-          happiness: defaultPetType.default_stats.happiness,
-          hunger: defaultPetType.default_stats.hunger,
-          cleanliness: defaultPetType.default_stats.cleanliness,
-        },
+        stats: defaultPetType.default_stats,
         status: PetStatus.Active,
       });
 

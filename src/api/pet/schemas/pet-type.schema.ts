@@ -3,8 +3,11 @@ import { Document } from 'mongoose';
 
 export type PetStats = {
   happiness: number; // 0 - 100
+  last_update_happiness: Date;
   hunger: number; // 0 - 100
+  last_update_hunger: Date;
   cleanliness: number; // 0 - 100
+  last_update_cleanliness: Date;
 };
 
 export type PetTypeDocument = PetType & Document;

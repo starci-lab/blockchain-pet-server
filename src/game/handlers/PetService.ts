@@ -209,7 +209,14 @@ export class PetService {
         const newPetDoc = await petModel.create({
           owner_id: user._id,
           type: '6869e7a0bae4412d2195d11c',
-          stats: { hunger: 100, happiness: 100, cleanliness: 100 },
+          stats: {
+            hunger: 100,
+            happiness: 100,
+            cleanliness: 100,
+            last_update_happiness: new Date(),
+            last_update_hunger: new Date(),
+            last_update_cleanliness: new Date(),
+          },
         });
         newPetDoc.save();
 
