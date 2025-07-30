@@ -1,16 +1,13 @@
-import { ClassConstructor, plainToClass } from 'class-transformer';
-import { validateSync } from 'class-validator';
+import { ClassConstructor, plainToClass } from 'class-transformer'
+import { validateSync } from 'class-validator'
 
-function validateConfig<T extends object>(
-  config: Record<string, unknown>,
-  envVariablesClass: ClassConstructor<T>,
-) {
+function validateConfig<T extends object>(config: Record<string, unknown>, envVariablesClass: ClassConstructor<T>) {
   const validatedConfig = plainToClass(envVariablesClass, config, {
-    enableImplicitConversion: true,
-  });
+    enableImplicitConversion: true
+  })
   const errors = validateSync(validatedConfig, {
-    skipMissingProperties: false,
-  });
+    skipMissingProperties: false
+  })
 
   if (errors.length > 0) {
     const errorMsg = errors
@@ -21,14 +18,14 @@ function validateConfig<T extends object>(
             ? Object.entries(error.constraints as Record<string, string>)
                 .map(([key, value]) => `+ ${key}: ${value}`)
                 .join('\n')
-            : 'No constraints'),
+            : 'No constraints')
       )
-      .join('\n');
+      .join('\n')
 
-    console.error(`\n${errors.toString()}`);
-    throw new Error(errorMsg);
+    console.error(`\n${errors.toString()}`)
+    throw new Error(errorMsg)
   }
-  return validatedConfig;
+  return validatedConfig
 }
 
-export default validateConfig;
+export default validateConfig

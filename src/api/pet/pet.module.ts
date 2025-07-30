@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { PetService } from './pet.service';
-import { PetController } from './pet.controller';
-import { MongooseModule } from '@nestjs/mongoose';
-import { Pet, PetSchema } from 'src/api/pet/schemas/pet.schema';
-import { PetType, PetTypeSchema } from 'src/api/pet/schemas/pet-type.schema';
+import { Module } from '@nestjs/common'
+import { PetService } from './pet.service'
+import { PetController } from './pet.controller'
+import { MongooseModule } from '@nestjs/mongoose'
+import { Pet, PetSchema } from 'src/api/pet/schemas/pet.schema'
+import { PetType, PetTypeSchema } from 'src/api/pet/schemas/pet-type.schema'
 
 @Module({
   imports: [
@@ -11,12 +11,12 @@ import { PetType, PetTypeSchema } from 'src/api/pet/schemas/pet-type.schema';
       { name: Pet.name, schema: PetSchema },
       {
         name: PetType.name,
-        schema: PetTypeSchema,
-      },
-    ]),
+        schema: PetTypeSchema
+      }
+    ])
   ],
   controllers: [PetController],
   providers: [PetService],
-  exports: [PetService], // Export PetService so other modules can use it
+  exports: [PetService] // Export PetService so other modules can use it
 })
 export class PetModule {}

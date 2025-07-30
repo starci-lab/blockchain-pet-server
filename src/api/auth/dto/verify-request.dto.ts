@@ -1,25 +1,25 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger'
+import { IsNotEmpty } from 'class-validator'
 
 export class VerifyRequestDto {
   @ApiProperty({
     example: '',
-    description: 'message',
+    description: 'message'
   })
   @IsNotEmpty()
-  message: string;
+  message: string
 
   @ApiProperty({
     example: '',
-    description: 'signature',
+    description: 'signature'
   })
   @IsNotEmpty()
-  signature: string;
+  signature: string
 
   @ApiProperty({
     example: '',
-    description: 'address',
+    description: 'address'
   })
   @IsNotEmpty()
-  address: string;
+  address: string
 }

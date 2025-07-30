@@ -1,8 +1,8 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { isAddress } from 'ethers';
-import { Document } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
+import { isAddress } from 'ethers'
+import { Document } from 'mongoose'
 
-export type UserDocument = User & Document;
+export type UserDocument = User & Document
 
 @Schema({ timestamps: true })
 export class User {
@@ -13,23 +13,22 @@ export class User {
     maxlength: 50,
     validate: {
       validator: (v: string) => isAddress(v),
-      message: (props: { value: string }) =>
-        `Invalid wallet address: ${props.value}`,
-    },
+      message: (props: { value: string }) => `Invalid wallet address: ${props.value}`
+    }
   })
-  wallet_address: string;
+  wallet_address: string
 
   @Prop({ type: String, default: '' })
-  nickname?: string;
+  nickname?: string
 
   @Prop({
     type: Number,
-    default: 10000,
+    default: 10000
   })
-  token_nom: number;
+  token_nom: number
 
   @Prop({ type: Date, default: null })
-  last_active_at?: Date;
+  last_active_at?: Date
 }
 
-export const UserSchema = SchemaFactory.createForClass(User);
+export const UserSchema = SchemaFactory.createForClass(User)

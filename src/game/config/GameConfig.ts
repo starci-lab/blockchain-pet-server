@@ -3,7 +3,7 @@ export const GAME_CONFIG = {
     MAX_CLIENTS: 1,
     UPDATE_INTERVAL: 1000,
     RECONNECTION_TIME: 50,
-    STATE_SUMMARY_INTERVAL: 30000,
+    STATE_SUMMARY_INTERVAL: 30000
   },
 
   PETS: {
@@ -17,12 +17,12 @@ export const GAME_CONFIG = {
     HAPPINESS_MAX: 100,
     HUNGER_ALLOW_EAT: 80,
     CLEANLINESS_ALLOW_CLEAN: 80,
-    HAPPINESS_ALLOW_PLAY: 80,
+    HAPPINESS_ALLOW_PLAY: 80
   },
 
   ECONOMY: {
     INITIAL_TOKENS: 100,
-    STARTER_FOOD_QUANTITY: 5,
+    STARTER_FOOD_QUANTITY: 5
   },
 
   FOOD: {
@@ -33,22 +33,22 @@ export const GAME_CONFIG = {
         name: 'Hamburger',
         price: 5,
         hungerRestore: 15,
-        texture: 'hamburger',
+        texture: 'hamburger'
       },
       {
         id: 'apple',
         name: 'Apple',
         price: 3,
         hungerRestore: 10,
-        texture: 'apple',
+        texture: 'apple'
       },
       {
         id: 'bone',
         name: 'Bone',
         price: 5,
         hungerRestore: 12,
-        texture: 'bone',
-      },
-    ],
-  },
-};
+        texture: 'bone'
+      }
+    ]
+  }
+}

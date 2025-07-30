@@ -1,6 +1,6 @@
 export type AuthConfig = {
-  accessSecret: string;
-  accessExpires: string;
-  refreshSecret: string;
-  refreshExpires: string;
-};
+  accessSecret: string
+  accessExpires: string
+  refreshSecret: string
+  refreshExpires: string
+}

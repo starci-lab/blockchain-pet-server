@@ -1,11 +1,11 @@
-import { RedisPresence } from '@colyseus/redis-presence';
-import { RedisDriver } from '@colyseus/redis-driver';
+import { RedisPresence } from '@colyseus/redis-presence'
+import { RedisDriver } from '@colyseus/redis-driver'
 
 export interface RedisConfig {
-  host: string;
-  port: number;
-  password?: string;
-  db?: number;
+  host: string
+  port: number
+  password?: string
+  db?: number
 }
 
 export function getRedisConfig(): RedisConfig {
@@ -13,8 +13,8 @@ export function getRedisConfig(): RedisConfig {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379'),
     password: process.env.REDIS_PASSWORD,
-    db: parseInt(process.env.REDIS_DB || '0'),
-  };
+    db: parseInt(process.env.REDIS_DB || '0')
+  }
 }
 
 export function createRedisPresence(config: RedisConfig) {
@@ -22,8 +22,8 @@ export function createRedisPresence(config: RedisConfig) {
     host: config.host,
     port: config.port,
     password: config.password,
-    db: config.db,
-  });
+    db: config.db
+  })
 }
 
 export function createRedisDriver(config: RedisConfig) {
@@ -31,6 +31,6 @@ export function createRedisDriver(config: RedisConfig) {
     host: config.host,
     port: config.port,
     password: config.password,
-    db: config.db,
-  });
+    db: config.db
+  })
 }
