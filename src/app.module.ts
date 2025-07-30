@@ -7,9 +7,12 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './api/auth/auth.module';
 import { UserModule } from './api/user/user.module';
 import authConfig from 'src/api/auth/config/auth-config';
-import { JwtModule } from '@nestjs/jwt';
 import { StoreItemModule } from './api/store-item/store-item.module';
 import { PetModule } from './api/pet/pet.module';
+import { BullModule } from '@nestjs/bullmq';
+import { BullModuleMQ } from './bull/bullmq.module';
+import { getPetQueueConfig } from './bull/config/queue.config';
+import { QUEUE_NAME } from './bull/constants/queue.constant';
 
 @Module({
   imports: [
@@ -27,11 +30,26 @@ import { PetModule } from './api/pet/pet.module';
         uri: configService.get<string>('MONGO_URI'),
       }),
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
+        },
+      }),
+    }),
+    BullModule.registerQueue({
+      name: QUEUE_NAME.UPDATE_PET_STATS,
+      ...getPetQueueConfig(),
+    }),
     GameModule,
     AuthModule,
     UserModule,
     StoreItemModule,
     PetModule,
+    BullModuleMQ,
   ],
   controllers: [AppController],
   providers: [AppService],

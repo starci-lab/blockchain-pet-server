@@ -25,6 +25,11 @@ export class PetController {
     return this.petService.findAll();
   }
 
+  @Get('active')
+  findActivePets() {
+    return this.petService.findActivePets();
+  }
+
   @Get('owner/:ownerId')
   findByOwner(@Param('ownerId') ownerId: string) {
     return this.petService.findByOwner(ownerId);
