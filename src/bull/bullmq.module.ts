@@ -7,4 +7,4 @@ import { PetModule } from 'src/api/pet/pet.module';
   providers: [],
   exports: [],
 })
-export class BullModule {}
+export class BullModuleMQ {}

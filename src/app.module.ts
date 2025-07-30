@@ -10,8 +10,9 @@ import authConfig from 'src/api/auth/config/auth-config';
 import { StoreItemModule } from './api/store-item/store-item.module';
 import { PetModule } from './api/pet/pet.module';
 import { BullModule } from '@nestjs/bullmq';
-import { getPetQueueConfig } from './game/bull/config/queue.config';
-import { QUEUE_NAME } from './game/bull/constants/queue.constant';
+import { BullModuleMQ } from './bull/bullmq.module';
+import { getPetQueueConfig } from './bull/config/queue.config';
+import { QUEUE_NAME } from './bull/constants/queue.constant';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { QUEUE_NAME } from './game/bull/constants/queue.constant';
     UserModule,
     StoreItemModule,
     PetModule,
+    BullModuleMQ,
   ],
   controllers: [AppController],
   providers: [AppService],

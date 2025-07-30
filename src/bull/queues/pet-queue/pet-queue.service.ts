@@ -52,8 +52,11 @@ export class PetQueueService implements OnModuleInit {
           jobId,
           repeat: {
             // Update every 1 hours
-            every: 60 * 60 * 1000,
+            every: 1000,
           },
+          // Add cleanup options for repeat jobs
+          removeOnComplete: 5, // Keep only 5 completed instances
+          removeOnFail: 3, // Keep only 3 failed instances
         },
       );
 
