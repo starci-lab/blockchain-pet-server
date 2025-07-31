@@ -171,7 +171,6 @@ export class PetService {
   static async handleCreatePet(eventData: any) {
     const { sessionId, petId, petType, room, client, isBuyPet } = eventData
     const player = room.state.players.get(sessionId)
-
     if (!player) return
     // Nếu là luồng mua pet (isBuyPet=true), thực hiện logic mua pet chuẩn backend
     if (isBuyPet) {
@@ -212,6 +211,7 @@ export class PetService {
         console.log('petTypeDoc: ', petTypeDoc)
         if (!petTypeDoc) throw new Error('Pet type not found in DB')
 
+        const now = new Date()
         const newPetDoc = await petModel.create({
           owner_id: user._id,
           type: petTypeDoc._id,
@@ -219,10 +219,14 @@ export class PetService {
             hunger: 100,
             happiness: 100,
             cleanliness: 100,
-            last_update_happiness: new Date(),
-            last_update_hunger: new Date(),
-            last_update_cleanliness: new Date()
-          }
+            last_update_happiness: now,
+            last_update_hunger: now,
+            last_update_cleanliness: now
+          },
+          token_income: 0,
+          total_income: 0,
+          isAdult: false,
+          last_claim: now
         })
         newPetDoc.save()
 
@@ -923,7 +927,6 @@ export class PetService {
 
     // Add pets from database to player state
     userPets.forEach((dbPet: any) => {
-      console.log(12312312, dbPet)
       const pet = new Pet()
       pet.id = dbPet._id.toString()
       pet.ownerId = player.sessionId
