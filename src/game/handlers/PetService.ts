@@ -146,9 +146,9 @@ export class PetService {
         pet.hunger = dbPet.stats?.hunger ?? 50
         pet.happiness = dbPet.stats?.happiness ?? 50
         pet.cleanliness = dbPet.stats?.cleanliness ?? 50
-        pet.last_update_happiness = dbPet.stats?.last_update_happiness ?? ''
-        pet.last_update_hunger = dbPet.stats?.last_update_hunger ?? ''
-        pet.last_update_cleanliness = dbPet.stats?.last_update_cleanliness ?? ''
+        pet.last_update_happiness = dbPet.stats?.last_update_happiness.toISOString() ?? ''
+        pet.last_update_hunger = dbPet.stats?.last_update_hunger.toISOString() ?? ''
+        pet.last_update_cleanliness = dbPet.stats?.last_update_cleanliness.toISOString() ?? ''
         pet.lastUpdated = Date.now()
         return pet
       })
@@ -198,9 +198,10 @@ export class PetService {
         //TODO: find by type pet ID
         const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
         if (!user) throw new Error('User not found in DB')
+        if (!petType) throw new Error('Pet type not found in DB')
         const newPetDoc = await petModel.create({
           owner_id: user._id,
-          type: '6869e7a0bae4412d2195d11c',
+          type: petType._id,
           stats: {
             hunger: 100,
             happiness: 100,
