@@ -203,6 +203,7 @@ export class PetService {
         if (!user) throw new Error('User not found in DB')
 
         if (!petType) throw new Error('Pet type not found in DB')
+        // Check pet type is exist in DB
         const petTypeDoc = await petTypeModel
           .findOne({
             name: { $regex: new RegExp(`^${petType}$`, 'i') }

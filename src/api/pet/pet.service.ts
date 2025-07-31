@@ -18,6 +18,11 @@ export class PetService {
     return createdPet.save()
   }
 
+  async createPetType(createPetDto: CreatePetDto) {
+    const createdPetType = new this.petTypeModel(createPetDto)
+    return createdPetType.save()
+  }
+
   async findAll() {
     return this.petModel.find().populate('type').populate('owner_id').exec()
   }
