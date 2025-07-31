@@ -44,14 +44,14 @@ export class PetType {
   @Prop({ type: Number, required: true, default: 2 })
   time_natural: number
 
-  @Prop({ type: Number, required: true, default: 10 })
+  @Prop({ type: Number, required: true, default: 100 })
   max_income: number
 
   @Prop({ type: Number, required: true, default: 5 })
   income_per_claim: number
 
-  @Prop({ type: Date, required: true, default: new Date() })
-  last_claim: Date
+  @Prop({ type: Number, required: true, default: 15 })
+  max_income_per_claim: number
 }
 
 export const PetTypeSchema = SchemaFactory.createForClass(PetType)

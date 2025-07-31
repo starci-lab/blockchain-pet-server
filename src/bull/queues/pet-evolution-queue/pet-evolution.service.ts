@@ -9,7 +9,7 @@ interface PetEvolutionJobData {
 }
 
 @Injectable()
-export class PetEvulationService {
+export class PetEvolutionService {
   private readonly logger = new Logger(PetQueueService.name)
 
   constructor(@InjectQueue(QUEUE_NAME.UPDATE_EVOLUTION) private petEvolutionQueue: Queue) {}
@@ -21,14 +21,14 @@ export class PetEvulationService {
 
   private async initializeUpdateEvolutionJobs() {
     try {
-      await this.addUpdateEvolutionJob()
+      await this.addUpdateEvolutionJobs()
       this.logger.log(`Initialized update evolution pets jobs `)
     } catch (error) {
       this.logger.error('Failed to initialize update stats jobs', error)
     }
   }
 
-  async addUpdateEvolutionJob() {
+  async addUpdateEvolutionJobs() {
     try {
       const jobId = JOB_ID.UPDATE_EVOLUTION
       // Check if job already exists
@@ -46,7 +46,7 @@ export class PetEvulationService {
           jobId,
           repeat: {
             // Update every 1 minute
-            every: 1000 * 60
+            every: 1000
           },
           // Add cleanup options for repeat jobs
           removeOnComplete: 5, // Keep only 5 completed instances

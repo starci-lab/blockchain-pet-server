@@ -146,9 +146,13 @@ export class PetService {
         pet.hunger = dbPet.stats?.hunger ?? 50
         pet.happiness = dbPet.stats?.happiness ?? 50
         pet.cleanliness = dbPet.stats?.cleanliness ?? 50
-        pet.last_update_happiness = dbPet.stats?.last_update_happiness.toISOString() ?? ''
-        pet.last_update_hunger = dbPet.stats?.last_update_hunger.toISOString() ?? ''
-        pet.last_update_cleanliness = dbPet.stats?.last_update_cleanliness.toISOString() ?? ''
+        pet.lastUpdateHappiness = dbPet.stats?.last_update_happiness?.toISOString() ?? ''
+        pet.lastUpdateHunger = dbPet.stats?.last_update_hunger?.toISOString() ?? ''
+        pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() ?? ''
+        pet.isAdult = dbPet.isAdult || false
+        pet.tokenIncome = dbPet.token_income || 0
+        pet.totalIncome = dbPet.total_income || 0
+        pet.lastClaim = dbPet.last_claim?.toISOString() ?? ''
         pet.lastUpdated = Date.now()
         return pet
       })
@@ -169,7 +173,6 @@ export class PetService {
     const player = room.state.players.get(sessionId)
 
     if (!player) return
-
     // Nếu là luồng mua pet (isBuyPet=true), thực hiện logic mua pet chuẩn backend
     if (isBuyPet) {
       // Giá pet (có thể lấy từ config hoặc hardcode)
@@ -189,6 +192,7 @@ export class PetService {
         // Lưu token mới vào DB
         const dbService = DatabaseService.getInstance()
         const userModel = dbService.getUserModel()
+        const petTypeModel = dbService.getPetTypeModel()
         await userModel.updateOne(
           { wallet_address: player.walletAddress.toLowerCase() },
           { $inc: { tokens: -PET_PRICE } }
@@ -198,10 +202,19 @@ export class PetService {
         //TODO: find by type pet ID
         const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
         if (!user) throw new Error('User not found in DB')
+
         if (!petType) throw new Error('Pet type not found in DB')
+        const petTypeDoc = await petTypeModel
+          .findOne({
+            name: { $regex: new RegExp(`^${petType}$`, 'i') }
+          })
+          .exec()
+        console.log('petTypeDoc: ', petTypeDoc)
+        if (!petTypeDoc) throw new Error('Pet type not found in DB')
+
         const newPetDoc = await petModel.create({
           owner_id: user._id,
-          type: petType._id,
+          type: petTypeDoc._id,
           stats: {
             hunger: 100,
             happiness: 100,
@@ -895,7 +908,7 @@ export class PetService {
   }
 
   // Sync pets from database to player state
-  static async syncPlayerPetsFromDatabase(player: any, userPets: any[]): Promise<void> {
+  static syncPlayerPetsFromDatabase(player: any, userPets: any[]): void {
     console.log(`🔄 [Service] Syncing ${userPets.length} pets from database for ${player.name}`)
 
     // Initialize player pets collection if not exists
@@ -906,8 +919,11 @@ export class PetService {
     // Clear existing pets
     player.pets.clear()
 
+    const now = new Date().toISOString()
+
     // Add pets from database to player state
     userPets.forEach((dbPet: any) => {
+      console.log(12312312, dbPet)
       const pet = new Pet()
       pet.id = dbPet._id.toString()
       pet.ownerId = player.sessionId
@@ -916,6 +932,13 @@ export class PetService {
       pet.happiness = dbPet.stats?.happiness || 50
       pet.cleanliness = dbPet.stats?.cleanliness || 50
       pet.lastUpdated = Date.now()
+      pet.lastUpdateHappiness = dbPet.stats?.last_update_happiness.toISOString() || now
+      pet.lastUpdateHunger = dbPet.stats?.last_update_hunger.toISOString() || now
+      pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness.getTime().toString() || now
+      pet.isAdult = dbPet.isAdult || false
+      pet.tokenIncome = dbPet.token_income || 0
+      pet.totalIncome = dbPet.total_income || 0
+      pet.lastClaim = dbPet.last_claim.getTime().toString() || now
 
       player.pets.set(pet.id, pet)
     })

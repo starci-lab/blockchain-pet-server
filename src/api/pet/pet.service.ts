@@ -45,7 +45,7 @@ export class PetService {
     return this.petModel.findByIdAndDelete(id).exec()
   }
 
-  // Create starter pet for new user
+  //TODO: Create starter pet for new user
   async createStarterPet(userId: string, walletAddress: string) {
     try {
       // Find or create a default pet type (Chog)
@@ -72,9 +72,9 @@ export class PetService {
           },
           image_url: '/assets/images/Chog/chog_idle.png',
           time_natural: 10,
-          max_income: 10,
+          max_income: 100,
           income_per_claim: 1,
-          last_claim: now
+          max_income_per_claim: 15
         })
         await defaultPetType.save()
       }
@@ -85,7 +85,9 @@ export class PetService {
         type: defaultPetType._id,
         name: defaultPetType.name,
         stats: defaultPetType.default_stats,
-        status: PetStatus.Active
+        status: PetStatus.Active,
+        isAdult: false,
+        last_claim: new Date()
       })
 
       await starterPet.save()
@@ -99,5 +101,9 @@ export class PetService {
 
   async updateStats(petId: string, petStats: any) {
     return this.petModel.findByIdAndUpdate(petId, { stats: petStats }, { new: true }).exec()
+  }
+
+  async updatePetAdult(petId: string) {
+    return this.petModel.findByIdAndUpdate(petId, { isAdult: true, last_claim: new Date() }, { new: true }).exec()
   }
 }

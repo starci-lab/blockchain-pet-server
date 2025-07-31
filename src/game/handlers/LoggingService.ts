@@ -1,12 +1,12 @@
-import { Room } from 'colyseus';
-import { GameRoomState } from '../schemas/game-room.schema';
+import { Room } from 'colyseus'
+import { GameRoomState } from '../schemas/game-room.schema'
 
 export class LoggingService {
-  private room: Room<GameRoomState>;
-  private lastStateSummary: number = 0;
+  private room: Room<GameRoomState>
+  private lastStateSummary: number = 0
 
   constructor(room: Room<GameRoomState>) {
-    this.room = room;
+    this.room = room
   }
 
   logStateChange(action: string, details: any) {
@@ -15,8 +15,8 @@ export class LoggingService {
       roomId: this.room.roomId,
       playerCount: this.room.state.playerCount,
       petCount: this.room.state.pets.size,
-      details,
-    });
+      details
+    })
   }
 
   logCurrentState() {
@@ -24,13 +24,11 @@ export class LoggingService {
       timestamp: new Date().toISOString(),
       roomName: this.room.state.roomName,
       playerCount: this.room.state.playerCount,
-      players: Array.from(this.room.state.players.entries()).map(
-        ([id, player]) => ({
-          sessionId: id,
-          name: player.name,
-          tokens: player.tokens,
-        }),
-      ),
+      players: Array.from(this.room.state.players.entries()).map(([id, player]) => ({
+        sessionId: id,
+        name: player.name,
+        tokens: player.tokens
+      })),
       pets: Array.from(this.room.state.pets.entries()).map(([id, pet]) => ({
         id,
         ownerId: pet.ownerId,
@@ -39,29 +37,36 @@ export class LoggingService {
         happiness: pet.happiness,
         cleanliness: pet.cleanliness,
         lastUpdated: pet.lastUpdated,
-      })),
-    });
+        lastUpdateHappiness: pet.lastUpdateHappiness,
+        lastUpdateHunger: pet.lastUpdateHunger,
+        lastUpdateCleanliness: pet.lastUpdateCleanliness,
+        isAdult: pet.isAdult,
+        tokenIncome: pet.tokenIncome,
+        totalIncome: pet.totalIncome,
+        lastClaim: pet.lastClaim
+      }))
+    })
   }
 
   logRoomCreated() {
-    console.log('🎮 Pet Simulator Room Created:', this.room.roomId);
-    console.log('✅ Pet Simulator Room initialized successfully');
+    console.log('🎮 Pet Simulator Room Created:', this.room.roomId)
+    console.log('✅ Pet Simulator Room initialized successfully')
 
     this.logStateChange('ROOM_CREATED', {
       roomId: this.room.roomId,
       roomName: this.room.state.roomName,
-      maxClients: (this.room as any).maxClients,
-    });
+      maxClients: (this.room as any).maxClients
+    })
 
-    this.logCurrentState();
+    this.logCurrentState()
   }
 
   periodicStateSummary() {
-    const now = Date.now();
+    const now = Date.now()
     if (!this.lastStateSummary || now - this.lastStateSummary > 30000) {
-      console.log(`⏰ [PERIODIC STATE SUMMARY] ${new Date().toISOString()}`);
-      this.logCurrentState();
-      this.lastStateSummary = now;
+      console.log(`⏰ [PERIODIC STATE SUMMARY] ${new Date().toISOString()}`)
+      this.logCurrentState()
+      this.lastStateSummary = now
     }
   }
 
@@ -72,10 +77,10 @@ export class LoggingService {
       totalPlayers: this.room.state.playerCount,
       starterTokens: player.tokens,
       totalPetsOwned: player.totalPetsOwned,
-      inventoryItems: player.inventory.size,
-    });
+      inventoryItems: player.inventory.size
+    })
 
-    this.logCurrentState();
+    this.logCurrentState()
   }
 
   logPlayerLeft(player: any, petsRemoved: number, consented?: boolean) {
@@ -84,22 +89,22 @@ export class LoggingService {
       playerName: player.name,
       totalPlayers: this.room.state.playerCount,
       petsRemoved,
-      consented,
-    });
+      consented
+    })
 
-    this.logCurrentState();
+    this.logCurrentState()
   }
 
   logRoomDisposed() {
-    console.log(`🗑️ Game Room disposed: ${this.room.roomId}`);
+    console.log(`🗑️ Game Room disposed: ${this.room.roomId}`)
 
     this.logStateChange('ROOM_DISPOSED', {
       roomId: this.room.roomId,
       finalPlayerCount: this.room.state.playerCount,
-      finalPetCount: this.room.state.pets.size,
-    });
+      finalPetCount: this.room.state.pets.size
+    })
 
-    console.log(`📊 [FINAL STATE] Room ${this.room.roomId} before disposal:`);
-    this.logCurrentState();
+    console.log(`📊 [FINAL STATE] Room ${this.room.roomId} before disposal:`)
+    this.logCurrentState()
   }
 }
