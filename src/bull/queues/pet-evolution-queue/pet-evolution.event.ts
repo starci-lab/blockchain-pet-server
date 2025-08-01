@@ -2,7 +2,7 @@ import { OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bull
 import { QUEUE_NAME } from '../../constants/queue.constant'
 import { Logger } from '@nestjs/common'
 
-@QueueEventsListener(QUEUE_NAME.UPDATE_PET_STATS, {
+@QueueEventsListener(QUEUE_NAME.UPDATE_EVOLUTION, {
   blockingTimeout: 3000
 })
 export class PetEvolutionQueueEvents extends QueueEventsHost {

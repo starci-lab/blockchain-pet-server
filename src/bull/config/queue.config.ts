@@ -19,6 +19,15 @@ export const queuesConfig: BullConfig[] = [
         maxLen: 1000
       }
     }
+  },
+  {
+    name: QUEUE_NAME.CREATE_INCOME,
+    prefix: PREFIX.PET,
+    streams: {
+      events: {
+        maxLen: 1000
+      }
+    }
   }
 ]
 

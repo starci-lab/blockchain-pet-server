@@ -5,7 +5,7 @@ import { PetEvolutionQueueModule } from './queues/pet-evolution-queue/pet-evolut
 import { PetIncomeQueueModule } from './queues/pet-income-queue/pet-income.module'
 
 @Module({
-  imports: [PetQueueModule, PetModule, PetEvolutionQueueModule, PetIncomeQueueModule],
+  imports: [PetModule, PetQueueModule, PetEvolutionQueueModule, PetIncomeQueueModule],
   providers: [],
   exports: []
 })
