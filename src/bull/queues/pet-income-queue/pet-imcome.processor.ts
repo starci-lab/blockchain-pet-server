@@ -6,9 +6,9 @@ import { Job } from 'bullmq'
 import { getTimeDifferenceInSeconds } from 'src/game/utils/timer'
 import { PetType } from 'src/api/pet/schemas/pet-type.schema'
 
-@Processor(QUEUE_NAME.UPDATE_EVOLUTION)
-export class PetEvolutionProcessor extends WorkerHost {
-  private readonly logger = new Logger(PetEvolutionProcessor.name)
+@Processor(QUEUE_NAME.CREATE_INCOME)
+export class PetIncomeProcessor extends WorkerHost {
+  private readonly logger = new Logger(PetIncomeProcessor.name)
 
   constructor(private readonly petService: PetService) {
     super()
