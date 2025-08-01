@@ -46,6 +46,13 @@ export class PetService {
     return this.petModel.find({ isAdult: false }).populate('type').exec()
   }
 
+  async findPetPosibleIncome() {
+    return this.petModel
+      .find({ isAdult: true })
+      .populate('type')
+      .then((pets) => pets.filter((pet) => pet.token_income < (pet.type as PetType).max_income_per_claim))
+  }
+
   async update(id: string, updatePetDto: UpdatePetDto) {
     return this.petModel.findByIdAndUpdate(id, updatePetDto, { new: true }).populate('type').exec()
   }
