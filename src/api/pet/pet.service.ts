@@ -42,6 +42,10 @@ export class PetService {
     return this.petModel.findById(id).populate('type').populate('owner_id').exec()
   }
 
+  async findPetYoungPets() {
+    return this.petModel.find({ isAdult: false }).populate('type').exec()
+  }
+
   async update(id: string, updatePetDto: UpdatePetDto) {
     return this.petModel.findByIdAndUpdate(id, updatePetDto, { new: true }).populate('type').exec()
   }

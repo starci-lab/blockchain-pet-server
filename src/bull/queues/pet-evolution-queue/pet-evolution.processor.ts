@@ -18,48 +18,23 @@ export class PetEvolutionProcessor extends WorkerHost {
     try {
       this.logger.log(`Processing jobs ${job.id}`)
 
-      const pets = await this.petService.findActivePets()
+      const pets = await this.petService.findPetYoungPets()
+
       if (!pets) {
-        throw new Error(`Pets not found`)
+        return
       }
+
       for (const pet of pets) {
         const petId = pet._id as string
-        const isAdult = pet.isAdult
         const petType = pet.type as PetType
 
         const differenceInMs = getTimeDifferenceInSeconds(pet.last_claim) / 60
         console.log('differenceInMs:', differenceInMs)
 
         // Ensure pet.type is populated as PetType, not just ObjectId
-        console.log('is update income:', differenceInMs >= petType?.time_natural)
+        console.log('is adult:', differenceInMs >= petType?.time_natural)
         if (differenceInMs >= petType?.time_natural) {
-          if (!isAdult) {
-            await this.petService.updatePetAdult(petId)
-          } else if (pet.token_income < petType?.max_income_per_claim) {
-            const now = new Date()
-            const incomeCal = Math.floor((differenceInMs / petType?.time_natural) * petType?.income_per_claim)
-            pet.token_income += incomeCal
-            pet.total_income += incomeCal
-            pet.last_claim = now
-
-            await pet.save()
-            this.logger.log(
-              `Pet ${petId} earned ${incomeCal} tokens. Total: ${pet.token_income}/${petType?.max_income_per_claim}`
-            )
-
-            // If pet reach max income, remove job
-            // TODO: Implement this
-            // if (pet.token_income >= petType?.max_income_per_claim) {
-            //   try {
-            //     await this.PetEvolutionService.removeUpdateStatsJob(petId)
-            //     this.logger.log(
-            //       `🗑️ Removed evolution job for pet ${petId} - reached max income (${pet.token_income}/${petType?.max_income_per_claim})`
-            //     )
-            //   } catch (removeError) {
-            //     this.logger.error(`Failed to remove job for pet ${petId}:`, removeError)
-            //   }
-            // }
-          }
+          await this.petService.updatePetAdult(petId)
         }
       }
 
