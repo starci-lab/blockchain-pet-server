@@ -50,7 +50,11 @@ export class PetService {
     return this.petModel
       .find({ isAdult: true })
       .populate('type')
-      .then((pets) => pets.filter((pet) => pet.token_income < (pet.type as PetType).max_income_per_claim))
+      .then(
+        (pets) =>
+          pets.filter((pet) => pet.token_income < (pet.type as PetType).max_income_per_claim) &&
+          pets.filter((pet) => pet.total_income < (pet.type as PetType).max_income)
+      )
   }
 
   async update(id: string, updatePetDto: UpdatePetDto) {

@@ -35,7 +35,10 @@ export class PetIncomeProcessor extends WorkerHost {
         console.log('is update income:', differenceInMs >= petType?.time_natural)
         if (differenceInMs >= petType?.time_natural) {
           const now = new Date()
-          const incomeCal = Math.floor((differenceInMs / petType?.time_natural) * petType?.income_per_claim)
+          let incomeCal = Math.floor((differenceInMs / petType?.time_natural) * petType?.income_per_claim)
+          if (pet.total_income + incomeCal > petType?.max_income) {
+            incomeCal = petType?.max_income - pet.total_income
+          }
           pet.token_income += incomeCal
           pet.total_income += incomeCal
           pet.last_claim = now
