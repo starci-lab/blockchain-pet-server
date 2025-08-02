@@ -18,7 +18,7 @@ export class AuthService {
     console.log('jwtService:', this.jwtService)
   }
 
-  async generateMessage() {
+  generateMessage() {
     console.log('Generating message for authentication...')
     const message = randomUUID()
     // TODO: set cache message
@@ -39,6 +39,9 @@ export class AuthService {
     try {
       recoveredAddress = ethers.verifyMessage(message, signature)
     } catch (error) {
+      if (error instanceof Error) {
+        throw new BadRequestException(error.message)
+      }
       throw new BadRequestException('Signature verification failed')
     }
 
@@ -73,7 +76,7 @@ export class AuthService {
         )
 
         if (starterPet) {
-          console.log(`✅ New user created with starter pet: ${normalizedAddress} | Pet ID: ${starterPet._id}`)
+          console.log(`✅ New user created with starter pet: ${normalizedAddress} | Pet ID: ${String(starterPet._id)}`)
         }
       } catch (error) {
         console.error(`⚠️ User created but starter pet creation failed: ${normalizedAddress}`, error)

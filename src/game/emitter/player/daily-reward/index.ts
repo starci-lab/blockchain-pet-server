@@ -1,10 +1,18 @@
-import { Client } from 'colyseus'
+import { Client, Room } from 'colyseus'
 import { InventoryService } from 'src/game/handlers/InventoryService'
 import { PlayerService } from 'src/game/handlers/PlayerService'
+import { GameRoomState } from 'src/game/schemas/game-room.schema'
+
+// Interface for room with logging service
+interface RoomWithLogging extends Room<GameRoomState> {
+  loggingService?: {
+    logStateChange: (event: string, data: any) => void
+  }
+}
 
 // Daily Reward Module
-export const claimDailyReward = (room: any) => {
-  return (client: Client) => {
+export const claimDailyReward = (room: RoomWithLogging) => {
+  return async (client: Client) => {
     const player = room.state.players.get(client.sessionId)
     if (!player) {
       client.send('daily-reward-response', {
@@ -24,14 +32,14 @@ export const claimDailyReward = (room: any) => {
       }
 
       // Add token rewards
-      PlayerService.addTokens(player, dailyRewards.tokens)
+      await PlayerService.addTokens(player, dailyRewards.tokens)
 
       // Add item rewards
       dailyRewards.items.forEach((item) => {
         InventoryService.addItem(player, item.type, item.name, item.quantity)
       })
 
-      const newInventory = InventoryService.getInventorySummary(player)
+      const newInventory = InventoryService.getInventorySummary(player) as Record<string, any>
 
       client.send('daily-reward-response', {
         success: true,
@@ -43,12 +51,15 @@ export const claimDailyReward = (room: any) => {
         message: `Daily reward claimed! +${dailyRewards.tokens} tokens and items`
       })
 
-      room.loggingService.logStateChange('DAILY_REWARD_CLAIMED', {
-        playerId: client.sessionId,
-        playerName: player.name,
-        tokensEarned: dailyRewards.tokens,
-        itemsEarned: dailyRewards.items.length
-      })
+      // Log state change if logging service exists
+      if (room.loggingService && typeof room.loggingService.logStateChange === 'function') {
+        room.loggingService.logStateChange('DAILY_REWARD_CLAIMED', {
+          playerId: client.sessionId,
+          playerName: player.name,
+          tokensEarned: dailyRewards.tokens,
+          itemsEarned: dailyRewards.items.length
+        })
+      }
 
       console.log(
         `🎁 Daily reward claimed by ${player.name}: ${dailyRewards.tokens} tokens + ${dailyRewards.items.length} items`

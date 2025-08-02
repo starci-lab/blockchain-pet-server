@@ -1,62 +1,90 @@
-import { Client } from 'colyseus'
+import { Client, Room } from 'colyseus'
 import { eventBus } from 'src/shared/even-bus'
+import { GameRoomState } from 'src/game/schemas/game-room.schema'
+
+// Interface for room with logging service
+interface RoomWithLogging extends Room<GameRoomState> {
+  loggingService?: {
+    logStateChange: (event: string, data: any) => void
+  }
+}
+
+// Interface for settings data
+interface SettingsData {
+  name?: string
+  preferences?: Record<string, any>
+}
+
+// Interface for tutorial data
+interface TutorialData {
+  step?: string
+  completed?: boolean
+  progress?: Record<string, any>
+}
+
+// Interface for pets request data
+interface PetsRequestData {
+  petId?: string
+  action?: string
+  data?: Record<string, any>
+}
 
 export class PlayerEmitter {
   // Game config handler - emit to PlayerService
-  static requestGameConfig(room: any) {
-    return (client: Client, data: any) => {
+  static requestGameConfig(room: RoomWithLogging) {
+    return (client: Client) => {
       console.log(`⚙️ [Handler] Request game config`)
 
       eventBus.emit('player.get_game_config', {
         sessionId: client.sessionId,
         room,
         client
-      })
+      } as const)
     }
   }
 
   // Player state handler - emit to PlayerService
-  static requestPlayerState(room: any) {
-    return (client: Client, data: any) => {
+  static requestPlayerState(room: RoomWithLogging) {
+    return (client: Client) => {
       console.log(`👤 [Handler] Request player state`)
 
       eventBus.emit('player.get_state', {
         sessionId: client.sessionId,
         room,
         client
-      })
+      } as const)
     }
   }
 
   // Profile handler - emit to PlayerService
-  static getProfile(room: any) {
-    return (client: Client, data: any) => {
+  static getProfile(room: RoomWithLogging) {
+    return (client: Client) => {
       console.log(`📋 [Handler] Get profile request`)
 
       eventBus.emit('player.get_profile', {
         sessionId: client.sessionId,
         room,
         client
-      })
+      } as const)
     }
   }
 
   // Daily reward handler - emit to PlayerService
-  static claimDailyReward(room: any) {
-    return (client: Client, data: any) => {
+  static claimDailyReward(room: RoomWithLogging) {
+    return (client: Client) => {
       console.log(`🎁 [Handler] Claim daily reward`)
 
       eventBus.emit('player.claim_daily_reward', {
         sessionId: client.sessionId,
         room,
         client
-      })
+      } as const)
     }
   }
 
   // Settings update handler - emit to PlayerService
-  static updateSettings(room: any) {
-    return (client: Client, data: any) => {
+  static updateSettings(room: RoomWithLogging) {
+    return (client: Client, data: SettingsData) => {
       console.log(`⚙️ [Handler] Update settings:`, data)
 
       eventBus.emit('player.update_settings', {
@@ -64,13 +92,13 @@ export class PlayerEmitter {
         settings: data,
         room,
         client
-      })
+      } as const)
     }
   }
 
   // Tutorial update handler - emit to PlayerService
-  static updateTutorial(room: any) {
-    return (client: Client, data: any) => {
+  static updateTutorial(room: RoomWithLogging) {
+    return (client: Client, data: TutorialData) => {
       console.log(`📚 [Handler] Update tutorial:`, data)
 
       eventBus.emit('player.update_tutorial', {
@@ -78,13 +106,13 @@ export class PlayerEmitter {
         tutorialData: data,
         room,
         client
-      })
+      } as const)
     }
   }
 
   // Request pets state handler - emit to PlayerService or PetService
-  static requestPetsState(room: any) {
-    return (client: Client, data: any) => {
+  static requestPetsState(room: RoomWithLogging) {
+    return (client: Client, data: PetsRequestData) => {
       console.log(`🐕 [Emitter] Request pets state from ${client.sessionId}`)
 
       eventBus.emit('player.get_pets_state', {
@@ -92,12 +120,12 @@ export class PlayerEmitter {
         room,
         client,
         data
-      })
+      } as const)
     }
   }
 
   // Helper methods for validation (can be used by services)
-  static validatePlayer(room: any, sessionId: string): any {
+  static validatePlayer(room: RoomWithLogging, sessionId: string): any {
     const player = room.state.players.get(sessionId)
     if (!player) {
       console.warn(`⚠️ Player not found for session: ${sessionId}`)
@@ -113,7 +141,7 @@ export class PlayerEmitter {
     })
   }
 
-  static logPlayerAction(room: any, action: string, playerId: string, data: any = {}) {
+  static logPlayerAction(room: RoomWithLogging, action: string, playerId: string, data: Record<string, any> = {}) {
     room.loggingService?.logStateChange(action, {
       playerId,
       timestamp: new Date().toISOString(),

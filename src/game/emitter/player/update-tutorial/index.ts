@@ -1,17 +1,41 @@
-import { Client } from 'colyseus'
+import { Client, Room } from 'colyseus'
 import { InventoryService } from 'src/game/handlers/InventoryService'
 import { PlayerService } from 'src/game/handlers/PlayerService'
+import { GameRoomState } from 'src/game/schemas/game-room.schema'
+
+// Interface for room with logging service
+interface RoomWithLogging extends Room<GameRoomState> {
+  loggingService?: {
+    logStateChange: (event: string, data: any) => void
+  }
+}
+
+// Interface for tutorial data
+interface TutorialData {
+  step: string
+  completed: boolean
+  progress?: Record<string, any>
+}
+
+// Interface for tutorial item reward
+interface TutorialItem {
+  type: string
+  name: string
+  quantity: number
+}
+
+// Interface for tutorial reward
+interface TutorialReward {
+  tokens?: number
+  items?: TutorialItem[]
+}
+
+// Type for tutorial rewards mapping
+type TutorialRewards = Record<string, TutorialReward>
 
 // Update Tutorial Progress Handler
-export const updateTutorial = (room: any) => {
-  return async (
-    client: Client,
-    data: {
-      step: string
-      completed: boolean
-      progress?: any
-    }
-  ) => {
+export const updateTutorial = (room: RoomWithLogging) => {
+  return async (client: Client, data: TutorialData) => {
     try {
       const player = room.state.players.get(client.sessionId)
       if (!player) {
@@ -29,7 +53,7 @@ export const updateTutorial = (room: any) => {
 
       // Give tutorial rewards
       if (data.completed) {
-        const tutorialRewards = {
+        const tutorialRewards: TutorialRewards = {
           'first-pet': {
             tokens: 10,
             items: [{ type: 'food', name: 'apple', quantity: 5 }]
@@ -44,16 +68,16 @@ export const updateTutorial = (room: any) => {
           }
         }
 
-        const reward = (tutorialRewards as any)[data.step]
+        const reward = tutorialRewards[data.step]
         if (reward) {
           // Give token reward
           if (reward.tokens) {
-            PlayerService.addTokens(player, reward.tokens)
+            await PlayerService.addTokens(player, reward.tokens)
           }
 
           // Give item rewards
           if (reward.items) {
-            reward.items.forEach((item: any) => {
+            reward.items.forEach((item: TutorialItem) => {
               InventoryService.addItem(player, item.type, item.name, item.quantity)
             })
           }
@@ -68,15 +92,18 @@ export const updateTutorial = (room: any) => {
         step: data.step,
         completed: data.completed,
         tokens: player.tokens,
-        inventory: InventoryService.getInventorySummary(player)
+        inventory: InventoryService.getInventorySummary(player) as Record<string, any>
       })
 
-      room.loggingService.logStateChange('TUTORIAL_PROGRESS', {
-        playerId: client.sessionId,
-        playerName: player.name,
-        step: data.step,
-        completed: data.completed
-      })
+      // Log state change if logging service exists
+      if (room.loggingService && typeof room.loggingService.logStateChange === 'function') {
+        room.loggingService.logStateChange('TUTORIAL_PROGRESS', {
+          playerId: client.sessionId,
+          playerName: player.name,
+          step: data.step,
+          completed: data.completed
+        })
+      }
     } catch (error) {
       console.error('❌ Error updating tutorial:', error)
       client.send('tutorial-response', {

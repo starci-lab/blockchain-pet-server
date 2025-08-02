@@ -1,12 +1,49 @@
-import { Player, InventoryItem } from '../schemas/game-room.schema'
+import { Player, InventoryItem, GameRoomState } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
-import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { PetService } from './PetService'
 import { InventoryService } from './InventoryService'
 import { DatabaseService } from '../services/DatabaseService'
 import { Types } from 'mongoose'
+import { Client, Room } from 'colyseus'
 // import { User } from '../models/User'; // Uncomment when User model is created
+
+// Interface for room with logging service
+interface RoomWithLogging extends Room<GameRoomState> {
+  loggingService?: {
+    logStateChange: (event: string, data: any) => void
+  }
+}
+
+// Interface for event data structures
+interface BaseEventData {
+  sessionId: string
+  room: RoomWithLogging
+  client: Client
+}
+
+interface UpdateSettingsEventData extends BaseEventData {
+  settings: {
+    name?: string
+    preferences?: Record<string, any>
+  }
+}
+
+interface UpdateTutorialEventData extends BaseEventData {
+  tutorialData: {
+    step?: string
+    completed?: boolean
+    progress?: Record<string, any>
+  }
+}
+
+interface GetPetsStateEventData extends BaseEventData {
+  data?: {
+    petId?: string
+    action?: string
+    data?: Record<string, any>
+  }
+}
 
 export class PlayerService {
   // Initialize event listeners for player actions
@@ -16,7 +53,7 @@ export class PlayerService {
     // Listen for player events
     eventBus.on('player.get_game_config', this.handleGetGameConfig.bind(this))
     eventBus.on('player.get_state', this.handleGetPlayerState.bind(this))
-    eventBus.on('player.get_profile', this.handleGetProfile.bind(this))
+    eventBus.on('player.get_profile', (eventData: BaseEventData) => void this.handleGetProfile(eventData))
     eventBus.on('player.get_pets_state', this.handleGetPetsState.bind(this))
     eventBus.on('player.claim_daily_reward', this.handleClaimDailyReward.bind(this))
     eventBus.on('player.update_settings', this.handleUpdateSettings.bind(this))
@@ -26,7 +63,7 @@ export class PlayerService {
   }
 
   // Event handlers
-  static handleGetGameConfig(eventData: any) {
+  static handleGetGameConfig(eventData: BaseEventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -60,7 +97,7 @@ export class PlayerService {
     })
   }
 
-  static handleGetPlayerState(eventData: any) {
+  static handleGetPlayerState(eventData: BaseEventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -91,7 +128,7 @@ export class PlayerService {
     })
   }
 
-  static async handleGetProfile(eventData: any) {
+  static async handleGetProfile(eventData: BaseEventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -116,7 +153,7 @@ export class PlayerService {
       const petModel = dbService.getPetModel()
 
       // Try to get wallet address from player first, fallback to session
-      let walletAddress = player.walletAddress
+      let walletAddress: string | null = player.walletAddress
       if (!walletAddress) {
         walletAddress = this.getWalletFromSession(sessionId)
       }
@@ -156,7 +193,7 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = await petModel.find({ owner_id: user._id }).populate('type').exec()
+      const userPets = (await petModel.find({ owner_id: user._id }).populate('type').exec()) as any[]
 
       console.log(`🐕 Found ${userPets.length} pets for user ${user.wallet_address}`)
 
@@ -172,7 +209,7 @@ export class PlayerService {
         totalPetsOwned: player.totalPetsOwned, // Now accurate from synced pets
         inventory: this.convertDbInventoryToGameFormat([]), // User schema doesn't have inventory yet
         pets: userPets.map((pet: any) => ({
-          id: (pet._id as Types.ObjectId).toString(),
+          id: pet._id.toString(),
           name: pet.name || 'Unnamed Pet',
           type: pet.type?.name || 'chog', // Type is populated
           stats: {
@@ -180,7 +217,7 @@ export class PlayerService {
             hunger: pet.stats?.hunger || 0,
             cleanliness: pet.stats?.cleanliness || 0
           },
-          status: pet.status,
+          status: pet.status || 'active',
           createdAt: pet.createdAt || new Date(),
           updatedAt: pet.updatedAt || new Date()
         })),
@@ -199,7 +236,7 @@ export class PlayerService {
 
       // Fallback to in-memory data if DB query fails
       const inventorySummary = InventoryService.getInventorySummary(player) // Get wallet address for fallback profile
-      let fallbackWallet = player.walletAddress
+      let fallbackWallet: string | null = player.walletAddress
       if (!fallbackWallet) {
         fallbackWallet = this.getWalletFromSession(sessionId)
       }
@@ -222,7 +259,7 @@ export class PlayerService {
     }
   }
 
-  static handleClaimDailyReward(eventData: any) {
+  static handleClaimDailyReward(eventData: BaseEventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -264,7 +301,7 @@ export class PlayerService {
     })
   }
 
-  static handleUpdateSettings(eventData: any) {
+  static handleUpdateSettings(eventData: UpdateSettingsEventData) {
     const { sessionId, settings, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -293,7 +330,7 @@ export class PlayerService {
     })
   }
 
-  static handleUpdateTutorial(eventData: any) {
+  static handleUpdateTutorial(eventData: UpdateTutorialEventData) {
     const { sessionId, tutorialData, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -583,7 +620,7 @@ export class PlayerService {
     return null
   }
 
-  static handleGetPetsState(eventData: any) {
+  static handleGetPetsState(eventData: GetPetsStateEventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 

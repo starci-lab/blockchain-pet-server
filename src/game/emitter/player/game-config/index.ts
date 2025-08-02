@@ -1,8 +1,15 @@
-import { Client } from 'colyseus'
-import { ResponseBuilder } from '../../../utils/ResponseBuilder'
+import { Client, Room } from 'colyseus'
+import { GameRoomState } from 'src/game/schemas/game-room.schema'
+
+// Interface for room with logging service
+interface RoomWithLogging extends Room<GameRoomState> {
+  loggingService?: {
+    logStateChange: (event: string, data: any) => void
+  }
+}
 
 // Game Config Handler
-export const requestGameConfig = (room: any) => {
+export const requestGameConfig = (room: RoomWithLogging) => {
   return (client: Client) => {
     console.log(`⚙️ Game config requested by ${client.sessionId}`)
 

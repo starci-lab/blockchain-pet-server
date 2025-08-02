@@ -5,6 +5,7 @@ import { UpdateStoreItemDto } from './dto/update-store-item.dto'
 @Injectable()
 export class StoreItemService {
   create(createStoreItemDto: CreateStoreItemDto) {
+    console.log(createStoreItemDto)
     return 'This action adds a new storeItem'
   }
 
@@ -17,6 +18,7 @@ export class StoreItemService {
   }
 
   update(id: number, updateStoreItemDto: UpdateStoreItemDto) {
+    console.log(updateStoreItemDto)
     return `This action updates a #${id} storeItem`
   }
 
