@@ -1,5 +1,6 @@
 import { Room } from 'colyseus'
 import { GameRoomState } from '../schemas/game-room.schema'
+import { LoggingDetails, GamePlayer } from '../types/GameTypes'
 
 export class LoggingService {
   private room: Room<GameRoomState>
@@ -9,7 +10,7 @@ export class LoggingService {
     this.room = room
   }
 
-  logStateChange(action: string, details: any) {
+  logStateChange(action: string, details: LoggingDetails) {
     console.log(`🔄 [STATE CHANGE] ${action}:`, {
       timestamp: new Date().toISOString(),
       roomId: this.room.roomId,
@@ -55,7 +56,7 @@ export class LoggingService {
     this.logStateChange('ROOM_CREATED', {
       roomId: this.room.roomId,
       roomName: this.room.state.roomName,
-      maxClients: (this.room as any).maxClients
+      maxClients: (this.room as unknown as { maxClients: number }).maxClients
     })
 
     this.logCurrentState()
@@ -70,7 +71,7 @@ export class LoggingService {
     }
   }
 
-  logPlayerJoined(player: any) {
+  logPlayerJoined(player: GamePlayer) {
     this.logStateChange('PLAYER_JOINED', {
       sessionId: player.sessionId,
       playerName: player.name,
@@ -83,7 +84,7 @@ export class LoggingService {
     this.logCurrentState()
   }
 
-  logPlayerLeft(player: any, petsRemoved: number, consented?: boolean) {
+  logPlayerLeft(player: GamePlayer, petsRemoved: number, consented?: boolean) {
     this.logStateChange('PLAYER_LEFT', {
       sessionId: player.sessionId,
       playerName: player.name,

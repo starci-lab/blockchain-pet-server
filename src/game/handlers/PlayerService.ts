@@ -1,12 +1,96 @@
+
 import { Player, InventoryItem } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
-import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { PetService } from './PetService'
 import { InventoryService } from './InventoryService'
 import { DatabaseService } from '../services/DatabaseService'
 import { Types } from 'mongoose'
-// import { User } from '../models/User'; // Uncomment when User model is created
+import { DBPet } from '../types/GameTypes'
+
+interface DatabaseUser {
+  _id: Types.ObjectId
+  wallet_address: string
+  token_nom?: number
+  last_active_at?: Date
+  createdAt?: Date
+}
+
+interface DatabasePet {
+  _id: Types.ObjectId
+  name?: string
+  type?: {
+    name?: string
+  }
+  stats?: {
+    happiness?: number
+    hunger?: number
+    cleanliness?: number
+    last_update_happiness?: Date
+    last_update_hunger?: Date
+    last_update_cleanliness?: Date
+  }
+  status?: string
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+interface UserData {
+  sessionId: string
+  name?: string
+  tokens?: number
+  totalPetsOwned?: number
+  inventory?: InventoryItemData[]
+  wallet_address?: string
+}
+
+interface InventoryItemData {
+  itemType: string
+  itemName: string
+  quantity?: number
+  totalPurchased?: number
+}
+
+interface PetState {
+  id: string
+  ownerId: string
+  petType: string
+  hunger: number
+  happiness: number
+  cleanliness: number
+  lastUpdated: Date
+  lastUpdateHappiness?: Date
+  lastUpdateHunger?: Date
+  lastUpdateCleanliness?: Date
+  isAdult?: boolean
+  tokenIncome?: number
+  totalIncome?: number
+  lastClaim?: Date
+}
+
+interface RoomState {
+  players: Map<string, Player>
+  pets?: Map<string, PetState>
+}
+
+interface GameRoom {
+  state: RoomState
+  loggingService?: {
+    logStateChange: (action: string, data: Record<string, unknown>) => void
+  }
+}
+
+interface GameClient {
+  send: (type: string, data: Record<string, unknown>) => void
+}
+
+interface EventData {
+  sessionId: string
+  room: GameRoom
+  client: GameClient
+  settings?: Record<string, unknown>
+  tutorialData?: Record<string, unknown>
+}
 
 export class PlayerService {
   // Initialize event listeners for player actions
@@ -16,9 +100,13 @@ export class PlayerService {
     // Listen for player events
     eventBus.on('player.get_game_config', this.handleGetGameConfig.bind(this))
     eventBus.on('player.get_state', this.handleGetPlayerState.bind(this))
-    eventBus.on('player.get_profile', this.handleGetProfile.bind(this))
+    eventBus.on('player.get_profile', (eventData: EventData) => {
+      void this.handleGetProfile(eventData)
+    })
     eventBus.on('player.get_pets_state', this.handleGetPetsState.bind(this))
-    eventBus.on('player.claim_daily_reward', this.handleClaimDailyReward.bind(this))
+    eventBus.on('player.claim_daily_reward', (eventData: EventData) => {
+      void this.handleClaimDailyReward(eventData)
+    })
     eventBus.on('player.update_settings', this.handleUpdateSettings.bind(this))
     eventBus.on('player.update_tutorial', this.handleUpdateTutorial.bind(this))
 
@@ -26,7 +114,7 @@ export class PlayerService {
   }
 
   // Event handlers
-  static handleGetGameConfig(eventData: any) {
+  static handleGetGameConfig(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -60,7 +148,7 @@ export class PlayerService {
     })
   }
 
-  static handleGetPlayerState(eventData: any) {
+  static handleGetPlayerState(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -91,7 +179,7 @@ export class PlayerService {
     })
   }
 
-  static async handleGetProfile(eventData: any) {
+  static async handleGetProfile(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -118,7 +206,10 @@ export class PlayerService {
       // Try to get wallet address from player first, fallback to session
       let walletAddress = player.walletAddress
       if (!walletAddress) {
-        walletAddress = this.getWalletFromSession(sessionId)
+        const sessionWallet = this.getWalletFromSession(sessionId)
+        if (sessionWallet) {
+          walletAddress = sessionWallet
+        }
       }
 
       let user = null
@@ -129,7 +220,7 @@ export class PlayerService {
           .findOne({
             wallet_address: walletAddress.toLowerCase()
           })
-          .exec()
+          .exec() as DatabaseUser | null
       }
 
       if (!user) {
@@ -156,12 +247,12 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = await petModel.find({ owner_id: user._id }).populate('type').exec()
+      const userPets = await petModel.find({ owner_id: user._id }).populate('type').exec() as DatabasePet[]
 
       console.log(`🐕 Found ${userPets.length} pets for user ${user.wallet_address}`)
 
       // Sync pets from database to player state
-      await PetService.syncPlayerPetsFromDatabase(player, userPets)
+      PetService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
 
       // Convert user data to profile response
       const profile = {
@@ -170,11 +261,11 @@ export class PlayerService {
         wallet_address: user.wallet_address,
         tokens: player.tokens, // Use in-game tokens (might be different from DB)
         totalPetsOwned: player.totalPetsOwned, // Now accurate from synced pets
-        inventory: this.convertDbInventoryToGameFormat([]), // User schema doesn't have inventory yet
-        pets: userPets.map((pet: any) => ({
-          id: (pet._id as Types.ObjectId).toString(),
+        inventory: this.convertDbInventoryToGameFormat([]),
+        pets: userPets.map((pet: DatabasePet) => ({
+          id: pet._id.toString(),
           name: pet.name || 'Unnamed Pet',
-          type: pet.type?.name || 'chog', // Type is populated
+          type: pet.type?.name || 'chog',
           stats: {
             happiness: pet.stats?.happiness || 0,
             hunger: pet.stats?.hunger || 0,
@@ -183,11 +274,11 @@ export class PlayerService {
             last_update_hunger: pet.stats?.last_update_hunger || new Date(),
             last_update_cleanliness: pet.stats?.last_update_cleanliness || new Date()
           },
-          status: pet.status,
+          status: pet.status || 'idle',
           createdAt: pet.createdAt || new Date(),
           updatedAt: pet.updatedAt || new Date()
         })),
-        joinedAt: (user as any).createdAt ? (user as any).createdAt.getTime() : Date.now(),
+        joinedAt: user.createdAt ? user.createdAt.getTime() : Date.now(),
         lastActiveAt: user.last_active_at || new Date()
       }
 
@@ -201,10 +292,13 @@ export class PlayerService {
       console.error(`❌ Error fetching profile from DB for ${player.name}:`, error)
 
       // Fallback to in-memory data if DB query fails
-      const inventorySummary = InventoryService.getInventorySummary(player) // Get wallet address for fallback profile
+      const inventorySummary = InventoryService.getInventorySummary(player)      // Get wallet address for fallback profile
       let fallbackWallet = player.walletAddress
       if (!fallbackWallet) {
-        fallbackWallet = this.getWalletFromSession(sessionId)
+        const sessionWallet = this.getWalletFromSession(sessionId)
+        if (sessionWallet) {
+          fallbackWallet = sessionWallet
+        }
       }
 
       client.send('profile-response', {
@@ -225,7 +319,7 @@ export class PlayerService {
     }
   }
 
-  static handleClaimDailyReward(eventData: any) {
+  static async handleClaimDailyReward(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -244,7 +338,7 @@ export class PlayerService {
     const rewardFood = 2
 
     // Add tokens
-    this.addTokens(player, rewardTokens)
+    await this.addTokens(player, rewardTokens)
 
     // Add food items
     InventoryService.addItem(player, 'food', 'apple', rewardFood)
@@ -267,7 +361,7 @@ export class PlayerService {
     })
   }
 
-  static handleUpdateSettings(eventData: any) {
+  static handleUpdateSettings(eventData: EventData) {
     const { sessionId, settings, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -286,17 +380,17 @@ export class PlayerService {
     client.send('settings-response', {
       success: true,
       message: 'Settings updated successfully',
-      settings: settings
+      settings: settings as Record<string, unknown>
     })
 
     room.loggingService?.logStateChange('SETTINGS_UPDATED', {
       playerId: sessionId,
       playerName: player.name,
-      settings: settings
+      settings: settings as Record<string, unknown>
     })
   }
 
-  static handleUpdateTutorial(eventData: any) {
+  static handleUpdateTutorial(eventData: EventData) {
     const { sessionId, tutorialData, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -314,17 +408,17 @@ export class PlayerService {
     client.send('tutorial-response', {
       success: true,
       message: 'Tutorial progress updated',
-      tutorialData: tutorialData
+      tutorialData: tutorialData as Record<string, unknown>
     })
 
     room.loggingService?.logStateChange('TUTORIAL_UPDATED', {
       playerId: sessionId,
       playerName: player.name,
-      tutorialData: tutorialData
+      tutorialData: tutorialData as Record<string, unknown>
     })
   }
   // Fetch user data from MongoDB via Mongoose
-  static async fetchUserData(sessionId: string, addressWallet?: string): Promise<any> {
+  static async fetchUserData(sessionId: string, addressWallet?: string): Promise<UserData> {
     try {
       console.log(`🔍 Fetching user data for sessionId: ${sessionId}, wallet: ${addressWallet}`)
 
@@ -339,14 +433,14 @@ export class PlayerService {
       const petModel = dbService.getPetModel()
 
       // Try to find user by wallet address or session
-      let user = null
+      let user: DatabaseUser | null = null
 
       if (addressWallet) {
         user = await userModel
           .findOne({
             wallet_address: addressWallet.toLowerCase()
           })
-          .exec()
+          .exec() as DatabaseUser | null
       }
 
       if (user) {
@@ -368,9 +462,11 @@ export class PlayerService {
       console.warn(`⚠️ Failed to fetch user data from DB, using defaults:`, error)
       return this.getDefaultUserData(sessionId)
     }
+    
+    return this.getDefaultUserData(sessionId)
   }
 
-  private static getDefaultUserData(sessionId: string) {
+  private static getDefaultUserData(sessionId: string): UserData {
     return {
       sessionId,
       name: `Player_${sessionId.substring(0, 6)}`,
@@ -402,7 +498,7 @@ export class PlayerService {
     // Add inventory from fetched data or starter items
     if (userData.inventory && userData.inventory.length > 0) {
       // Load existing inventory from database
-      userData.inventory.forEach((item: any) => {
+      userData.inventory.forEach((item: InventoryItemData) => {
         const inventoryItem = new InventoryItem()
         inventoryItem.itemType = item.itemType
         inventoryItem.itemName = item.itemName
@@ -468,7 +564,7 @@ export class PlayerService {
         .findOne({
           wallet_address: walletAddress.toLowerCase()
         })
-        .exec()
+        .exec() as DatabaseUser | null
 
       if (!user) {
         console.log(`👤 New user ${walletAddress}, no pets to sync`)
@@ -476,11 +572,11 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = await petModel.find({ owner_id: user._id }).populate('type').exec()
+      const userPets = await petModel.find({ owner_id: user._id }).populate('type').exec() as DatabasePet[]
 
       if (userPets.length > 0) {
         // Use PetService to sync pets to player state
-        PetService.syncPlayerPetsFromDatabase(player, userPets)
+        PetService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
         console.log(`🔄 Synced ${userPets.length} pets from database for ${player.name}`)
       }
     } catch (error) {
@@ -586,7 +682,7 @@ export class PlayerService {
     return null
   }
 
-  static handleGetPetsState(eventData: any) {
+  static handleGetPetsState(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -603,9 +699,9 @@ export class PlayerService {
 
     try {
       // Get player's pets from room state
-      const roomPets: any[] = []
+      const roomPets: PetState[] = []
       if (room.state.pets) {
-        room.state.pets.forEach((pet: any, petId: string) => {
+        room.state.pets.forEach((pet: PetState) => {
           if (pet.ownerId === sessionId) {
             roomPets.push(pet)
           }
@@ -625,41 +721,26 @@ export class PlayerService {
       // Send pets state sync
       client.send('pets-state-sync', {
         success: true,
-        pets: allPets.map((pet: any) => ({
-          id: pet.id,
-          ownerId: pet.ownerId,
-          petType: pet.petType,
-          hunger: pet.hunger || 0,
-          happiness: pet.happiness || 0,
-          cleanliness: pet.cleanliness || 0,
-          lastUpdated: pet.lastUpdated || new Date(),
-          lastUpdateHappiness: pet.lastUpdateHappiness,
-          lastUpdateHunger: pet.lastUpdateHunger,
-          lastUpdateCleanliness: pet.lastUpdateCleanliness,
-          isAdult: pet.isAdult,
-          tokenIncome: pet.tokenIncome,
-          totalIncome: pet.totalIncome,
-          lastClaim: pet.lastClaim
-        })),
+        pets: allPets.map((pet) => this.convertPetToStateFormat(pet)),
         totalPets: allPets.length
       })
 
       console.log(`✅ Pets state sent to ${player.name}: ${allPets.length} pets`)
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`❌ Error getting pets state for ${player.name}:`, error)
 
       client.send('pets-state-sync', {
         success: false,
         message: 'Failed to get pets state',
         pets: [],
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   }
 
   // Helper method to convert DB inventory format to game format
-  private static convertDbInventoryToGameFormat(dbInventory: any[]): any {
-    const gameInventory: any = {}
+  private static convertDbInventoryToGameFormat(dbInventory: InventoryItemData[]): Record<string, unknown> {
+    const gameInventory: Record<string, unknown> = {}
 
     dbInventory.forEach((item) => {
       const key = `${item.itemType}_${item.itemName}`
@@ -672,6 +753,40 @@ export class PlayerService {
     })
 
     return gameInventory
+  }
+
+  // Helper method to convert pet to state format
+  private static convertPetToStateFormat(pet: any): Record<string, unknown> {
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      id: pet.id as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      ownerId: pet.ownerId as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      petType: pet.petType as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      hunger: (pet.hunger as number) || 0,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      happiness: (pet.happiness as number) || 0,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      cleanliness: (pet.cleanliness as number) || 0,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      lastUpdated: pet.lastUpdated || new Date(),
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      lastUpdateHappiness: pet.lastUpdateHappiness,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      lastUpdateHunger: pet.lastUpdateHunger,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      lastUpdateCleanliness: pet.lastUpdateCleanliness,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      isAdult: pet.isAdult,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      tokenIncome: pet.tokenIncome,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      totalIncome: pet.totalIncome,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      lastClaim: pet.lastClaim
+    }
   }
 
   // Save player data to database

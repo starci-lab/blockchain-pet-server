@@ -57,3 +57,4 @@ export interface PetStateData {
   lastFedAt?: number;
   lastHungerUpdate?: number;
 }
+

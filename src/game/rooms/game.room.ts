@@ -1,10 +1,6 @@
 import { Room, Client } from 'colyseus'
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema'
 import { MapSchema } from '@colyseus/schema'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
-import { User, UserDocument } from 'src/api/user/schemas/user.schema'
-import { Pet as PetModel, PetDocument } from 'src/api/pet/schemas/pet.schema'
 // Emitters: Only emit events, no business logic
 
 // Services: Handle events with business logic
@@ -16,22 +12,22 @@ import { PlayerEmitter } from 'src/game/emitter/player'
 import { LoggingService } from 'src/game/handlers/LoggingService'
 import { PlayerService } from 'src/game/handlers/PlayerService'
 import { PetService } from 'src/game/handlers/PetService'
-import { InventoryService } from 'src/game/handlers/InventoryService'
-import { ConsoleLogger } from '@nestjs/common'
+import { RoomOptions } from '../types/RoomTypes'
+import { GamePlayer } from '../types/GameTypes'
 
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS // Single player only
   public loggingService: LoggingService
   private lastPlayerSave: number = 0
 
-  onCreate(options: any) {
+  onCreate(options: RoomOptions) {
     this.loggingService = new LoggingService(this)
     this.initializeRoom(options)
     this.setupMessageHandlers()
     this.startGameLoop()
   }
 
-  private initializeRoom(options: any) {
+  private initializeRoom(options: RoomOptions) {
     // Initialize room state using setState
     this.setState(new GameRoomState())
     this.state.roomName = options?.name || 'Pet Simulator Room'
@@ -121,7 +117,7 @@ export class GameRoom extends Room<GameRoomState> {
     }
   }
 
-  async onJoin(client: Client, options: any) {
+  async onJoin(client: Client, options: RoomOptions) {
     console.log(`👋 Player joined: ${client.sessionId} wallet:`, options)
 
     try {
@@ -138,7 +134,7 @@ export class GameRoom extends Room<GameRoomState> {
       this.state.playerCount = this.state.players.size
 
       this.handleNewPlayerPets(client, player)
-      this.loggingService.logPlayerJoined(player)
+      this.loggingService.logPlayerJoined(player as GamePlayer)
       this.sendWelcomeMessage(client, player)
 
       console.log(`✅ ${player.name} joined successfully. Total players: ${this.state.playerCount}`)
@@ -195,7 +191,7 @@ export class GameRoom extends Room<GameRoomState> {
     console.log(`👋 Player left: ${client.sessionId}, consented: ${consented}`)
     this.allowReconnection(client, GAME_CONFIG.ROOM.RECONNECTION_TIME)
 
-    const player = this.state.players.get(client.sessionId)
+    const player = this.state.players.get(client.sessionId) as GamePlayer
     if (player) {
       // Save player data before removing
       PlayerService.savePlayerData(player).catch((error) => {

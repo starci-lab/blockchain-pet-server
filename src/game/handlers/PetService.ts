@@ -1,13 +1,14 @@
 import { DatabaseService } from '../services/DatabaseService'
-import { Types } from 'mongoose'
-
-import { Pet } from '../schemas/game-room.schema'
+import { Pet, Player } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { InventoryService } from './InventoryService'
 import { MapSchema } from '@colyseus/schema'
 import { PetStatus } from 'src/api/pet/schemas/pet.schema'
+import { PetEventData, DBPet } from '../types/GameTypes'
+import { Types } from 'mongoose'
+import { PetStats as GamePetStats } from '../types/GameTypes'
 
 export class PetService {
   // Initialize event listeners
@@ -29,27 +30,36 @@ export class PetService {
     // Listen for pet cleaning events
     eventBus.on('pet.clean', this.handleCleanPet.bind(this))
 
-    // Listen for pet buy events (mua pet mới)
-    eventBus.on('pet.buy', this.handleBuyPet.bind(this))
+    // Listen for pet buy events (mua pet mới) - wrapped to handle async
+    eventBus.on('pet.buy', (eventData: PetEventData) => {
+      this.handleBuyPet(eventData).catch(console.error)
+    })
 
-    // Listen for pet eated food events
-    eventBus.on('pet.eated_food', this.handleEatedFood.bind(this))
+    // Listen for pet eated food events - wrapped to handle async
+    eventBus.on('pet.eated_food', (eventData: PetEventData) => {
+      this.handleEatedFood(eventData).catch(console.error)
+    })
 
-    // Listen for pet cleaned events
-    eventBus.on('pet.cleaned', this.handleCleanedPet.bind(this))
+    // Listen for pet cleaned events - wrapped to handle async
+    eventBus.on('pet.cleaned', (eventData: PetEventData) => {
+      this.handleCleanedPet(eventData).catch(console.error)
+    })
 
-    // Listen for pet played events
-    eventBus.on('pet.played', this.handlePlayedPet.bind(this))
+    // Listen for pet played events - wrapped to handle async
+    eventBus.on('pet.played', (eventData: PetEventData) => {
+      this.handlePlayedPet(eventData).catch(console.error)
+    })
 
     console.log('✅ PetService event listeners initialized')
   }
-  static async handleBuyPet(eventData: any) {
+
+  static async handleBuyPet(eventData: PetEventData) {
     const { sessionId, petType, room, client } = eventData
     const player = room.state.players.get(sessionId)
-    if (!player) {
+    if (!player || !petType) {
       client.send('buy-pet-response', {
         success: false,
-        message: 'Player not found'
+        message: 'Player or pet type not found'
       })
       return
     }
@@ -138,11 +148,11 @@ export class PetService {
       // Find all pets by user._id
       const dbPets = await petModel.find({ owner_id: user._id }).populate('type').exec()
       // Convert dbPets to game Pet objects
-      return dbPets.map((dbPet: any) => {
+      return dbPets.map((dbPet) => {
         const pet = new Pet()
-        pet.id = dbPet._id.toString()
+        pet.id = (dbPet._id as Types.ObjectId).toString()
         pet.ownerId = walletAddress
-        pet.petType = dbPet.type?.name || 'chog'
+        pet.petType = (dbPet as DBPet).type?.name || 'chog'
         pet.hunger = dbPet.stats?.hunger ?? 50
         pet.happiness = dbPet.stats?.happiness ?? 50
         pet.cleanliness = dbPet.stats?.cleanliness ?? 50
@@ -168,114 +178,22 @@ export class PetService {
    * Nếu eventData có isBuyPet=true thì thực hiện logic mua pet (trừ token, tạo pet DB, đồng bộ lại pet),
    * ngược lại chỉ tạo pet local (legacy, không dùng nữa)
    */
-  static async handleCreatePet(eventData: any) {
-    const { sessionId, petId, petType, room, client, isBuyPet } = eventData
+  private static isValidPetId(petId: string | undefined): petId is string {
+    return typeof petId === 'string' && petId.length > 0
+  }
+
+  static handleCreatePet(eventData: PetEventData) {
+    const { sessionId, petId, petType, room, client } = eventData
+    if (!this.isValidPetId(petId)) return
+
     const player = room.state.players.get(sessionId)
     if (!player) return
-    // Nếu là luồng mua pet (isBuyPet=true), thực hiện logic mua pet chuẩn backend
-    if (isBuyPet) {
-      // Giá pet (có thể lấy từ config hoặc hardcode)
-      const PET_PRICE = 50
-      if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-        client.send('buy-pet-response', {
-          success: false,
-          message: 'Not enough tokens',
-          currentTokens: player.tokens
-        })
-        return
-      }
-      try {
-        // Trừ token
-        player.tokens -= PET_PRICE
 
-        // Lưu token mới vào DB
-        const dbService = DatabaseService.getInstance()
-        const userModel = dbService.getUserModel()
-        const petTypeModel = dbService.getPetTypeModel()
-        await userModel.updateOne(
-          { wallet_address: player.walletAddress.toLowerCase() },
-          { $inc: { tokens: -PET_PRICE } }
-        )
-        // Tạo pet mới trong DB
-        const petModel = dbService.getPetModel()
-        //TODO: find by type pet ID
-        const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
-        if (!user) throw new Error('User not found in DB')
-
-        if (!petType) throw new Error('Pet type not found in DB')
-        // Check pet type is exist in DB
-        const petTypeDoc = await petTypeModel
-          .findOne({
-            name: { $regex: new RegExp(`^${petType}$`, 'i') }
-          })
-          .exec()
-        console.log('petTypeDoc: ', petTypeDoc)
-        if (!petTypeDoc) throw new Error('Pet type not found in DB')
-
-        const now = new Date()
-        const newPetDoc = await petModel.create({
-          owner_id: user._id,
-          type: petTypeDoc._id,
-          stats: {
-            hunger: 100,
-            happiness: 100,
-            cleanliness: 100,
-            last_update_happiness: now,
-            last_update_hunger: now,
-            last_update_cleanliness: now
-          },
-          token_income: 0,
-          total_income: 0,
-          isAdult: false,
-          last_claim: now
-        })
-        newPetDoc.save()
-
-        // Lấy lại danh sách pet mới nhất từ DB
-        const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress)
-        // Cập nhật state cho player
-        if (!player.pets) player.pets = new MapSchema<Pet>()
-        else player.pets.clear()
-        petsFromDb.forEach((pet: Pet) => {
-          room.state.pets.set(pet.id, pet)
-          player.pets.set(pet.id, pet)
-        })
-        player.totalPetsOwned = petsFromDb.length
-
-        // Gửi response về client
-        client.send('buy-pet-response', {
-          success: true,
-          message: 'Mua pet thành công!',
-          currentTokens: player.tokens,
-          pets: petsFromDb
-        })
-        room.loggingService.logStateChange('PET_BOUGHT', {
-          petType,
-          ownerId: sessionId,
-          ownerName: player.name,
-          totalPets: player.totalPetsOwned
-        })
-        console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
-      } catch (err) {
-        console.error('❌ Lỗi khi mua pet:', err)
-        client.send('buy-pet-response', {
-          success: false,
-          message: 'Lỗi khi mua pet',
-          currentTokens: player.tokens
-        })
-      }
-      return
-    }
-
-    // Legacy: tạo pet local (không dùng nữa, chỉ fallback nếu cần)
     console.log(`🐕 [Service] Creating pet ${petId} for ${player.name}`)
 
     const pet = this.createPet(petId, sessionId, petType)
-
-    // Add pet to room state
     room.state.pets.set(petId, pet)
 
-    // Add pet to player's pets collection
     if (!player.pets) {
       player.pets = new MapSchema<Pet>()
     }
@@ -301,9 +219,13 @@ export class PetService {
     console.log(`✅ Pet ${petId} created for ${player.name}. Total pets: ${player.totalPetsOwned}`)
   }
 
-  static handleRemovePet(eventData: any) {
+  static handleRemovePet(eventData: PetEventData) {
     const { sessionId, petId, room, client } = eventData
     const player = room.state.players.get(sessionId)
+    if (!player || !petId) {
+      console.log(`❌ Remove pet failed - invalid player/pet`)
+      return
+    }
     const pet = room.state.pets.get(petId)
 
     if (!player || !pet || pet.ownerId !== sessionId) {
@@ -340,13 +262,15 @@ export class PetService {
     console.log(`✅ Pet ${petId} removed for ${player.name}. Remaining pets: ${player.totalPetsOwned}`)
   }
 
-  static handleFeedPet(eventData: any) {
+  static handleFeedPet(eventData: PetEventData) {
     const { sessionId, petId, foodType, room, client } = eventData
-    const player = room.state.players.get(sessionId)
-    const pet = room.state.pets.get(petId)
+    if (!this.isValidPetId(petId) || !foodType) return
 
-    if (!player || !pet || pet.ownerId !== sessionId) {
-      console.log(`❌ Feed pet failed - invalid player/pet or ownership`)
+    const player = room.state.players.get(sessionId)
+    if (!player) return
+
+    const pet = room.state.pets.get(petId)
+    if (!pet || pet.ownerId !== sessionId) {
       client.send('action-response', {
         success: false,
         action: 'feed',
@@ -403,9 +327,13 @@ export class PetService {
     console.log(`✅ ${player.name} fed pet ${petId}. New stats: hunger=${pet.hunger}, happiness=${pet.happiness}`)
   }
 
-  static handlePlayWithPet(eventData: any) {
+  static handlePlayWithPet(eventData: PetEventData) {
     const { sessionId, petId, room, client } = eventData
     const player = room.state.players.get(sessionId)
+    if (!petId) {
+      console.log(`❌ Play with pet failed - petId is undefined`)
+      return
+    }
     const pet = room.state.pets.get(petId)
 
     if (!player || !pet || pet.ownerId !== sessionId) {
@@ -445,9 +373,13 @@ export class PetService {
     console.log(`✅ ${player.name} played with pet ${petId}. New happiness: ${pet.happiness}`)
   }
 
-  static handleCleanPet(eventData: any) {
+  static handleCleanPet(eventData: PetEventData) {
     const { sessionId, petId, room, client } = eventData
     const player = room.state.players.get(sessionId)
+    if (!petId) {
+      console.log(`❌ Clean pet failed - petId is undefined`)
+      return
+    }
     const pet = room.state.pets.get(petId)
 
     if (!player || !pet || pet.ownerId !== sessionId) {
@@ -491,7 +423,7 @@ export class PetService {
   }
 
   // Core pet creation and management methods
-  static createStarterPet(ownerId: string, ownerName: string): Pet {
+  static createStarterPet(ownerId: string): Pet {
     const starterPetId = `starter_${ownerId}_${Date.now()}`
 
     const pet = new Pet()
@@ -520,7 +452,7 @@ export class PetService {
   }
 
   // Update pet stats over time for a specific player (hunger, happiness, cleanliness decay)
-  static updatePlayerPetStats(player: any): void {
+  static updatePlayerPetStats(player: Player): void {
     if (!player.pets) return
 
     const now = Date.now()
@@ -552,7 +484,7 @@ export class PetService {
   }
 
   // Update pet stats over time for all pets in room (legacy method)
-  static updatePetStats(pets: any): void {
+  static updatePetStats(pets: MapSchema<Pet>): void {
     const now = Date.now()
     const updateInterval = 60000 // 1 minute
 
@@ -608,7 +540,7 @@ export class PetService {
   }
 
   // Get pets owned by specific player from player state
-  static getPlayerPets(player: any): Pet[] {
+  static getPlayerPets(player: Player): Pet[] {
     const playerPets: Pet[] = []
     if (player && player.pets) {
       player.pets.forEach((pet: Pet) => {
@@ -619,13 +551,17 @@ export class PetService {
   }
 
   // TODO: New code
-  static async handleEatedFood(eventData: any) {
+  static async handleEatedFood(eventData: PetEventData) {
     const { sessionId, petId, room, client, hungerLevel } = eventData
     try {
       const player = room.state.players.get(sessionId)
+      if (!petId) {
+        console.log(`❌ Eated food failed - petId is undefined`)
+        return
+      }
       const pet = room.state.pets.get(petId)
 
-      if (!player || !pet || pet.owner_id !== player.owner_id) {
+      if (!player || !pet || pet.ownerId !== sessionId) {
         console.log(`❌ Eated food failed - invalid player/pet or ownership`)
         client.send('action-response', {
           success: false,
@@ -704,8 +640,9 @@ export class PetService {
       return
     } catch (error) {
       console.error('❌ pet eated food error:', error)
-      client.send('buy-pet-response', {
+      client.send('action-response', {
         success: false,
+        action: 'eated_food',
         message: 'pet eated food error'
       })
     }
@@ -713,13 +650,17 @@ export class PetService {
   }
 
   // TODO: New code
-  static async handleCleanedPet(eventData: any) {
+  static async handleCleanedPet(eventData: PetEventData) {
     const { sessionId, petId, room, client, cleanlinessLevel } = eventData
     try {
       const player = room.state.players.get(sessionId)
+      if (!petId) {
+        console.log(`❌ Cleaned pet failed - petId is undefined`)
+        return
+      }
       const pet = room.state.pets.get(petId)
 
-      if (!player || !pet || player.owner_id !== pet.owner_id) {
+      if (!player || !pet || sessionId !== pet.ownerId) {
         console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`)
         client.send('action-response', {
           success: false,
@@ -807,17 +748,21 @@ export class PetService {
   }
 
   // TODO: New code
-  static async handlePlayedPet(eventData: any) {
+  static async handlePlayedPet(eventData: PetEventData) {
     const { sessionId, petId, room, client, happinessLevel } = eventData
     try {
       const player = room.state.players.get(sessionId)
+      if (!petId) {
+        console.log(`❌ Played pet failed - petId is undefined`)
+        return
+      }
       const pet = room.state.pets.get(petId)
 
-      if (!player || !pet || player.owner_id !== pet.owner_id) {
+      if (!player || !pet || sessionId !== pet.ownerId) {
         client.send('action-response', {
           success: false,
-          action: 'cleaned_pet',
-          message: 'Cannot cleaned: pet cleanliness is full'
+          action: 'played_pet',
+          message: 'Cannot play with pet'
         })
         return
       }
@@ -900,7 +845,7 @@ export class PetService {
   }
 
   // Get pet stats summary
-  static getPetStatsSummary(pet: Pet): any {
+  static getPetStatsSummary(pet: Pet): GamePetStats {
     return {
       id: pet.id,
       petType: pet.petType,
@@ -913,7 +858,7 @@ export class PetService {
   }
 
   // Sync pets from database to player state
-  static syncPlayerPetsFromDatabase(player: any, userPets: any[]): void {
+  static syncPlayerPetsFromDatabase(player: Player, userPets: DBPet[]): void {
     console.log(`🔄 [Service] Syncing ${userPets.length} pets from database for ${player.name}`)
 
     // Initialize player pets collection if not exists
@@ -927,7 +872,7 @@ export class PetService {
     const now = new Date().toISOString()
 
     // Add pets from database to player state
-    userPets.forEach((dbPet: any) => {
+    userPets.forEach((dbPet: DBPet) => {
       const pet = new Pet()
       pet.id = dbPet._id.toString()
       pet.ownerId = player.sessionId
@@ -936,13 +881,13 @@ export class PetService {
       pet.happiness = dbPet.stats?.happiness || 50
       pet.cleanliness = dbPet.stats?.cleanliness || 50
       pet.lastUpdated = Date.now()
-      pet.lastUpdateHappiness = dbPet.stats?.last_update_happiness.toISOString() || now
-      pet.lastUpdateHunger = dbPet.stats?.last_update_hunger.toISOString() || now
-      pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness.getTime().toString() || now
+      pet.lastUpdateHappiness = dbPet.stats?.last_update_happiness?.toISOString() || now
+      pet.lastUpdateHunger = dbPet.stats?.last_update_hunger?.toISOString() || now
+      pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() || now
       pet.isAdult = dbPet.isAdult || false
       pet.tokenIncome = dbPet.token_income || 0
       pet.totalIncome = dbPet.total_income || 0
-      pet.lastClaim = dbPet.last_claim.getTime().toString() || now
+      pet.lastClaim = dbPet.last_claim?.toISOString() || now
 
       player.pets.set(pet.id, pet)
     })
