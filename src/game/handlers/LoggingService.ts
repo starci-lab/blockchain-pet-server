@@ -1,15 +1,25 @@
 import { Room } from 'colyseus'
-import { GameRoomState } from '../schemas/game-room.schema'
+import { GameRoomState, Player } from '../schemas/game-room.schema'
+
+// Interface for room with maxClients property
+interface RoomWithMaxClients extends Room<GameRoomState> {
+  maxClients: number
+}
+
+// Interface for log details
+interface LogDetails {
+  [key: string]: unknown
+}
 
 export class LoggingService {
-  private room: Room<GameRoomState>
+  private room: RoomWithMaxClients
   private lastStateSummary: number = 0
 
-  constructor(room: Room<GameRoomState>) {
+  constructor(room: RoomWithMaxClients) {
     this.room = room
   }
 
-  logStateChange(action: string, details: any) {
+  logStateChange(action: string, details: LogDetails) {
     console.log(`🔄 [STATE CHANGE] ${action}:`, {
       timestamp: new Date().toISOString(),
       roomId: this.room.roomId,
@@ -48,7 +58,7 @@ export class LoggingService {
     this.logStateChange('ROOM_CREATED', {
       roomId: this.room.roomId,
       roomName: this.room.state.roomName,
-      maxClients: (this.room as any).maxClients
+      maxClients: this.room.maxClients || 'unknown'
     })
 
     this.logCurrentState()
@@ -63,7 +73,7 @@ export class LoggingService {
     }
   }
 
-  logPlayerJoined(player: any) {
+  logPlayerJoined(player: Player) {
     this.logStateChange('PLAYER_JOINED', {
       sessionId: player.sessionId,
       playerName: player.name,
@@ -76,7 +86,7 @@ export class LoggingService {
     this.logCurrentState()
   }
 
-  logPlayerLeft(player: any, petsRemoved: number, consented?: boolean) {
+  logPlayerLeft(player: Player, petsRemoved: number, consented?: boolean) {
     this.logStateChange('PLAYER_LEFT', {
       sessionId: player.sessionId,
       playerName: player.name,

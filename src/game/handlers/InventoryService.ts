@@ -1,9 +1,65 @@
-import { Player, InventoryItem } from '../schemas/game-room.schema'
+import { Player, InventoryItem, GameRoomState } from '../schemas/game-room.schema'
 import { eventBus } from 'src/shared/even-bus'
 import { PlayerService } from './PlayerService' // Import PlayerService for token operations
+import { Client, Room } from 'colyseus'
+
+// Interface for room with logging service
+interface RoomWithLogging extends Room<GameRoomState> {
+  loggingService?: {
+    logStateChange: (event: string, data: unknown) => void
+  }
+}
+
+// Interface for event data structures
+interface PurchaseEventData {
+  sessionId: string
+  itemType: string
+  itemName: string
+  quantity: number
+  room: RoomWithLogging
+  client: Client
+}
+
+interface BaseInventoryEventData {
+  sessionId: string
+  room: RoomWithLogging
+  client: Client
+}
+
+interface CatalogEventData {
+  client: Client
+}
+
+// Store item configuration types
+interface StoreItem {
+  price: number
+  name: string
+}
+
+interface StoreCategory {
+  [itemName: string]: StoreItem
+}
+
+interface StoreItems {
+  [categoryName: string]: StoreCategory
+}
+
+// Inventory summary types
+interface InventoryItemSummary {
+  type: string
+  name: string
+  quantity: number
+  totalPurchased: number
+}
+
+interface InventorySummary {
+  totalItems: number
+  itemsByType: { [itemType: string]: number }
+  items: InventoryItemSummary[]
+}
 
 // Simple item store configuration
-const STORE_ITEMS = {
+const STORE_ITEMS: StoreItems = {
   food: {
     hamburger: { price: 10, name: 'Hamburger' },
     apple: { price: 5, name: 'Apple' },
@@ -25,7 +81,7 @@ export class InventoryService {
     console.log('🎧 Initializing InventoryService event listeners...')
 
     // Listen for purchase events
-    eventBus.on('inventory.purchase', this.handlePurchaseItem.bind(this))
+    eventBus.on('inventory.purchase', (eventData: PurchaseEventData) => void this.handlePurchaseItem(eventData))
 
     // Listen for catalog requests
     eventBus.on('inventory.get_catalog', this.handleGetCatalog.bind(this))
@@ -37,7 +93,7 @@ export class InventoryService {
   }
 
   // Event handlers
-  static async handlePurchaseItem(eventData: any) {
+  static async handlePurchaseItem(eventData: PurchaseEventData) {
     const { sessionId, itemType, itemName, quantity, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -50,7 +106,7 @@ export class InventoryService {
     }
 
     // Check if item exists in store
-    const categoryItems = (STORE_ITEMS as any)[itemType]
+    const categoryItems = STORE_ITEMS[itemType]
     if (!categoryItems || !categoryItems[itemName]) {
       client.send('purchase-response', {
         success: false,
@@ -59,7 +115,7 @@ export class InventoryService {
       return
     }
 
-    const itemConfig = categoryItems[itemName]
+    const itemConfig: StoreItem = categoryItems[itemName]
     const result = await this.purchaseItem(player, itemType, itemName, quantity, itemConfig.price)
 
     // Send response with current inventory
@@ -75,7 +131,7 @@ export class InventoryService {
     console.log(`🛒 [Service] ${player.name} purchase result: ${result.message}`)
   }
 
-  static handleGetCatalog(eventData: any) {
+  static handleGetCatalog(eventData: CatalogEventData) {
     const { client } = eventData
 
     client.send('store-catalog', {
@@ -86,7 +142,7 @@ export class InventoryService {
     console.log(`📋 [Service] Sent store catalog`)
   }
 
-  static handleGetInventory(eventData: any) {
+  static handleGetInventory(eventData: BaseInventoryEventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -171,8 +227,8 @@ export class InventoryService {
   }
 
   // Get inventory summary
-  static getInventorySummary(player: Player): any {
-    const summary: any = {
+  static getInventorySummary(player: Player): InventorySummary {
+    const summary: InventorySummary = {
       totalItems: 0,
       itemsByType: {},
       items: []

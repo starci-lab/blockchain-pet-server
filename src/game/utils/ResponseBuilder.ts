@@ -1,5 +1,24 @@
-import { Player, Pet, InventoryItem } from '../schemas/game-room.schema'
+import { Player, Pet } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
+
+// Interface for pet stats in responses
+interface PetStatsResponse {
+  hunger: number
+  happiness: number
+  cleanliness: number
+  overallHealth?: number
+}
+
+// Type for inventory in responses
+type InventoryResponse = Record<
+  string,
+  {
+    itemType: string
+    itemName: string
+    quantity: number
+    totalPurchased: number
+  }
+>
 
 export class ResponseBuilder {
   // Simplified purchase response for new inventory system
@@ -11,7 +30,7 @@ export class ResponseBuilder {
       quantity: number
       totalPrice: number
       currentTokens: number
-      inventory?: any
+      inventory?: InventoryResponse
     }
   ) {
     return {
@@ -101,7 +120,13 @@ export class ResponseBuilder {
   }
 
   // Pet action responses
-  static petActionResponse(success: boolean, action: string, petId: string, petStats?: any, error?: string) {
+  static petActionResponse(
+    success: boolean,
+    action: string,
+    petId: string,
+    petStats?: PetStatsResponse,
+    error?: string
+  ) {
     return {
       success,
       action,
@@ -114,7 +139,7 @@ export class ResponseBuilder {
   }
 
   // Inventory response
-  static inventoryResponse(success: boolean, inventory?: any, tokens?: number, error?: string) {
+  static inventoryResponse(success: boolean, inventory?: InventoryResponse, tokens?: number, error?: string) {
     return {
       success,
       inventory: success ? inventory : undefined,

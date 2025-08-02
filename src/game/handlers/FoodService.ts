@@ -1,9 +1,18 @@
-import { GAME_CONFIG } from '../config/GameConfig'
+// Food item configuration types
+interface FoodItem {
+  price: number
+  nutrition: number
+  name: string
+}
+
+interface FoodItems {
+  [foodType: string]: FoodItem
+}
 
 // Simplified FoodService for the new inventory system
 export class FoodService {
   // Get food items configuration (price, nutrition values, etc.)
-  static getFoodItems() {
+  static getFoodItems(): FoodItems {
     return {
       hamburger: { price: 10, nutrition: 20, name: 'Hamburger' },
       apple: { price: 5, nutrition: 10, name: 'Apple' },
@@ -14,13 +23,13 @@ export class FoodService {
   // Get nutrition value for a food type
   static getFoodNutrition(foodType: string): number {
     const foodItems = this.getFoodItems()
-    return (foodItems as any)[foodType]?.nutrition || 10
+    return foodItems[foodType]?.nutrition || 10
   }
 
   // Get food price
   static getFoodPrice(foodType: string): number {
     const foodItems = this.getFoodItems()
-    return (foodItems as any)[foodType]?.price || 5
+    return foodItems[foodType]?.price || 5
   }
 
   // Get all available food types

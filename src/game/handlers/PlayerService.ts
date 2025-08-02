@@ -4,11 +4,7 @@ import { eventBus } from 'src/shared/even-bus'
 import { PetService } from './PetService'
 import { InventoryService } from './InventoryService'
 import { DatabaseService } from '../services/DatabaseService'
-import { Types } from 'mongoose'
 import { Client, Room } from 'colyseus'
-// import { User } from '../models/User'; // Uncomment when User model is created
-
-// Interface for room with logging service
 interface RoomWithLogging extends Room<GameRoomState> {
   loggingService?: {
     logStateChange: (event: string, data: any) => void
@@ -173,7 +169,7 @@ export class PlayerService {
         // If no user found in DB, use in-memory player data
         console.log(`⚠️ User not found in DB, using in-memory data for ${player.name}`)
 
-        const inventorySummary = InventoryService.getInventorySummary(player)
+        const inventorySummary = InventoryService.getInventorySummary(player) as any
 
         client.send('profile-response', {
           success: true,
@@ -207,21 +203,21 @@ export class PlayerService {
         wallet_address: user.wallet_address,
         tokens: player.tokens, // Use in-game tokens (might be different from DB)
         totalPetsOwned: player.totalPetsOwned, // Now accurate from synced pets
-        inventory: this.convertDbInventoryToGameFormat([]), // User schema doesn't have inventory yet
+        inventory: this.convertDbInventoryToGameFormat([]) as any, // User schema doesn't have inventory yet
         pets: userPets.map((pet: any) => ({
-          id: pet._id.toString(),
-          name: pet.name || 'Unnamed Pet',
-          type: pet.type?.name || 'chog', // Type is populated
+          id: (pet._id as any).toString(),
+          name: (pet.name as string) || 'Unnamed Pet',
+          type: (pet.type?.name as string) || 'chog', // Type is populated
           stats: {
-            happiness: pet.stats?.happiness || 0,
-            hunger: pet.stats?.hunger || 0,
-            cleanliness: pet.stats?.cleanliness || 0
+            happiness: (pet.stats?.happiness as number) || 0,
+            hunger: (pet.stats?.hunger as number) || 0,
+            cleanliness: (pet.stats?.cleanliness as number) || 0
           },
-          status: pet.status || 'active',
-          createdAt: pet.createdAt || new Date(),
-          updatedAt: pet.updatedAt || new Date()
+          status: (pet.status as string) || 'active',
+          createdAt: (pet.createdAt as Date) || new Date(),
+          updatedAt: (pet.updatedAt as Date) || new Date()
         })),
-        joinedAt: (user as any).createdAt ? (user as any).createdAt.getTime() : Date.now(),
+        joinedAt: (user as any).createdAt ? ((user as any).createdAt as Date).getTime() : Date.now(),
         lastActiveAt: user.last_active_at || new Date()
       }
 
@@ -423,28 +419,28 @@ export class PlayerService {
     name?: string
     addressWallet?: string
   }): Promise<Player> {
-    const userData = await this.fetchUserData(sessionId, addressWallet)
+    const userData = (await this.fetchUserData(sessionId, addressWallet)) as any
     console.log('User data fetched:', userData)
 
     const player = new Player()
     player.sessionId = sessionId
-    player.name = userData.name || name || `Player_${sessionId.substring(0, 6)}`
-    player.tokens = userData.tokens || GAME_CONFIG.ECONOMY.INITIAL_TOKENS
-    player.totalPetsOwned = userData.totalPetsOwned || 0
-    player.walletAddress = userData.wallet_address || addressWallet || ''
+    player.name = (userData.name as string) || name || `Player_${sessionId.substring(0, 6)}`
+    player.tokens = (userData.tokens as number) || GAME_CONFIG.ECONOMY.INITIAL_TOKENS
+    player.totalPetsOwned = (userData.totalPetsOwned as number) || 0
+    player.walletAddress = (userData.wallet_address as string) || addressWallet || ''
 
     // Add inventory from fetched data or starter items
-    if (userData.inventory && userData.inventory.length > 0) {
+    if ((userData.inventory as any[]) && (userData.inventory as any[]).length > 0) {
       // Load existing inventory from database
-      userData.inventory.forEach((item: any) => {
+      ;(userData.inventory as any[]).forEach((item: any) => {
         const inventoryItem = new InventoryItem()
-        inventoryItem.itemType = item.itemType
-        inventoryItem.itemName = item.itemName
-        inventoryItem.quantity = item.quantity || 0
-        inventoryItem.totalPurchased = item.totalPurchased || 0
-        player.inventory.set(`${item.itemType}_${item.itemName}`, inventoryItem)
+        inventoryItem.itemType = item.itemType as string
+        inventoryItem.itemName = item.itemName as string
+        inventoryItem.quantity = (item.quantity as number) || 0
+        inventoryItem.totalPurchased = (item.totalPurchased as number) || 0
+        player.inventory.set(`${item.itemType as string}_${item.itemName as string}`, inventoryItem)
       })
-      console.log(`📦 Loaded ${userData.inventory.length} inventory items from database`)
+      console.log(`📦 Loaded ${(userData.inventory as any[]).length} inventory items from database`)
     } else {
       // Add starter items for new user
       const starterApple = new InventoryItem()
@@ -639,8 +635,8 @@ export class PlayerService {
       // Get player's pets from room state
       const roomPets: any[] = []
       if (room.state.pets) {
-        room.state.pets.forEach((pet: any, petId: string) => {
-          if (pet.ownerId === sessionId) {
+        room.state.pets.forEach((pet: any) => {
+          if ((pet.ownerId as string) === sessionId) {
             roomPets.push(pet)
           }
         })
@@ -660,13 +656,13 @@ export class PlayerService {
       client.send('pets-state-sync', {
         success: true,
         pets: allPets.map((pet: any) => ({
-          id: pet.id,
-          ownerId: pet.ownerId,
-          petType: pet.petType,
-          hunger: pet.hunger || 0,
-          happiness: pet.happiness || 0,
-          cleanliness: pet.cleanliness || 0,
-          lastUpdated: pet.lastUpdated || new Date()
+          id: pet.id as string,
+          ownerId: pet.ownerId as string,
+          petType: pet.petType as string,
+          hunger: (pet.hunger as number) || 0,
+          happiness: (pet.happiness as number) || 0,
+          cleanliness: (pet.cleanliness as number) || 0,
+          lastUpdated: (pet.lastUpdated as Date) || new Date()
         })),
         totalPets: allPets.length
       })
@@ -679,7 +675,7 @@ export class PlayerService {
         success: false,
         message: 'Failed to get pets state',
         pets: [],
-        error: error.message
+        error: (error as Error).message
       })
     }
   }
@@ -688,14 +684,13 @@ export class PlayerService {
   private static convertDbInventoryToGameFormat(dbInventory: any[]): any {
     const gameInventory: any = {}
 
-    dbInventory.forEach((item) => {
-      const key = `${item.itemType}_${item.itemName}`
-      gameInventory[key] = {
-        itemType: item.itemType,
-        itemName: item.itemName,
-        quantity: item.quantity || 0,
-        totalPurchased: item.totalPurchased || 0
-      }
+    dbInventory.forEach((item: any) => {
+      const key = (`${item.itemType as string}_${item.itemName as string}`(gameInventory as any)[key] = {
+        itemType: item.itemType as string,
+        itemName: item.itemName as string,
+        quantity: (item.quantity as number) || 0,
+        totalPurchased: (item.totalPurchased as number) || 0
+      })
     })
 
     return gameInventory

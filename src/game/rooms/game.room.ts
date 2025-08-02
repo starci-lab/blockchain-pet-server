@@ -1,10 +1,6 @@
 import { Room, Client } from 'colyseus'
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema'
 import { MapSchema } from '@colyseus/schema'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
-import { User, UserDocument } from 'src/api/user/schemas/user.schema'
-import { Pet as PetModel, PetDocument } from 'src/api/pet/schemas/pet.schema'
 // Emitters: Only emit events, no business logic
 
 // Services: Handle events with business logic
@@ -16,25 +12,34 @@ import { PlayerEmitter } from 'src/game/emitter/player'
 import { LoggingService } from 'src/game/handlers/LoggingService'
 import { PlayerService } from 'src/game/handlers/PlayerService'
 import { PetService } from 'src/game/handlers/PetService'
-import { InventoryService } from 'src/game/handlers/InventoryService'
-import { ConsoleLogger } from '@nestjs/common'
+
+// Interface for room creation options
+interface RoomOptions {
+  name?: string
+}
+
+// Interface for player join options
+interface JoinOptions {
+  name?: string
+  addressWallet?: string
+}
 
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS // Single player only
   public loggingService: LoggingService
   private lastPlayerSave: number = 0
 
-  onCreate(options: any) {
+  onCreate(options: RoomOptions) {
     this.loggingService = new LoggingService(this)
     this.initializeRoom(options)
     this.setupMessageHandlers()
     this.startGameLoop()
   }
 
-  private initializeRoom(options: any) {
+  private initializeRoom(options: RoomOptions) {
     // Initialize room state using setState
     this.setState(new GameRoomState())
-    this.state.roomName = options?.name || 'Pet Simulator Room'
+    this.state.roomName = options.name || 'Pet Simulator Room'
 
     // console.log('🎧 Initializing service event listeners...');
     // PlayerService.initializeEventListeners();
@@ -64,7 +69,9 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage('cleaned_pet', PetEmitters.cleanedPet(this))
     this.onMessage('played_pet', PetEmitters.playedPet(this))
     // Buy pet event (mua pet mới)
-    this.onMessage('buy_pet', PetEmitters.buyPet(this))
+    this.onMessage('buy_pet', (client, message: { petType: string }) => {
+      void PetEmitters.buyPet(this)(client, message)
+    })
 
     // Food emitters (emit events to InventoryService)
     this.onMessage('buy_food', FoodEmitters.purchaseItem(this))
@@ -121,15 +128,15 @@ export class GameRoom extends Room<GameRoomState> {
     }
   }
 
-  async onJoin(client: Client, options: any) {
+  async onJoin(client: Client, options: JoinOptions) {
     console.log(`👋 Player joined: ${client.sessionId} wallet:`, options)
 
     try {
       // Create new player using async service to fetch real user data
       const player = await PlayerService.createNewPlayer({
         sessionId: client.sessionId,
-        name: options?.name,
-        addressWallet: options?.addressWallet || ''
+        name: options.name || `Player_${client.sessionId.substring(0, 6)}`,
+        addressWallet: options.addressWallet || ''
       })
       console.log(`🎮 Player created: ${player.name} (${client.sessionId}) ${player.walletAddress}`)
 
@@ -137,7 +144,7 @@ export class GameRoom extends Room<GameRoomState> {
       this.state.players.set(client.sessionId, player)
       this.state.playerCount = this.state.players.size
 
-      this.handleNewPlayerPets(client, player)
+      void this.handleNewPlayerPets(client, player)
       this.loggingService.logPlayerJoined(player)
       this.sendWelcomeMessage(client, player)
 
@@ -148,14 +155,14 @@ export class GameRoom extends Room<GameRoomState> {
       // Create fallback player with minimal data
       const fallbackPlayer = new Player()
       fallbackPlayer.sessionId = client.sessionId
-      fallbackPlayer.name = options?.name || `Player_${client.sessionId.substring(0, 6)}`
+      fallbackPlayer.name = options.name || `Player_${client.sessionId.substring(0, 6)}`
       fallbackPlayer.tokens = GAME_CONFIG.ECONOMY.INITIAL_TOKENS
       fallbackPlayer.totalPetsOwned = 0
 
       this.state.players.set(client.sessionId, fallbackPlayer)
       this.state.playerCount = this.state.players.size
 
-      this.handleNewPlayerPets(client, fallbackPlayer)
+      void this.handleNewPlayerPets(client, fallbackPlayer)
       this.sendWelcomeMessage(client, fallbackPlayer)
 
       console.log(`⚠️ Created fallback player for ${client.sessionId}`)

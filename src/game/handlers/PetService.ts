@@ -1,13 +1,41 @@
 import { DatabaseService } from '../services/DatabaseService'
-import { Types } from 'mongoose'
 
-import { Pet } from '../schemas/game-room.schema'
+import { Pet, Player } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { InventoryService } from './InventoryService'
 import { MapSchema } from '@colyseus/schema'
 import { PetStatus } from 'src/api/pet/schemas/pet.schema'
+import { PetStats } from 'src/api/pet/schemas/pet-type.schema'
+
+// Interface for pet stats summary
+export interface PetStatsSummary {
+  id: string
+  petType: string
+  hunger: number
+  happiness: number
+  cleanliness: number
+  overallHealth: number
+  lastUpdated: number
+}
+
+// Interface for database pet object with populated type
+export interface DatabasePet {
+  _id: any
+  owner_id: any
+  type?: {
+    name: string
+    default_stats: PetStats
+    image_url?: string
+    description?: string
+  }
+  name?: string
+  stats?: PetStats
+  status: PetStatus
+  createdAt?: Date
+  updatedAt?: Date
+}
 
 export class PetService {
   // Initialize event listeners
@@ -871,7 +899,7 @@ export class PetService {
   }
 
   // Get pet stats summary
-  static getPetStatsSummary(pet: Pet): any {
+  static getPetStatsSummary(pet: Pet): PetStatsSummary {
     return {
       id: pet.id,
       petType: pet.petType,
@@ -884,7 +912,7 @@ export class PetService {
   }
 
   // Sync pets from database to player state
-  static async syncPlayerPetsFromDatabase(player: any, userPets: any[]): Promise<void> {
+  static async syncPlayerPetsFromDatabase(player: Player, userPets: DatabasePet[]): Promise<void> {
     console.log(`🔄 [Service] Syncing ${userPets.length} pets from database for ${player.name}`)
 
     // Initialize player pets collection if not exists
@@ -896,7 +924,7 @@ export class PetService {
     player.pets.clear()
 
     // Add pets from database to player state
-    userPets.forEach((dbPet: any) => {
+    userPets.forEach((dbPet: DatabasePet) => {
       const pet = new Pet()
       pet.id = dbPet._id.toString()
       pet.ownerId = player.sessionId
