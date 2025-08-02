@@ -9,9 +9,13 @@ export class Pet extends Schema {
   @type('number') cleanliness: number = 100 // 0-100, decreases over time
   @type('string') petType: string = 'chog' // Pet species/type
   @type('number') lastUpdated: number = 0 // For tracking stat decay
-  @type('string') last_update_happiness: string = '' // For tracking last fed time
-  @type('string') last_update_hunger: string = '' // For tracking last fed time
-  @type('string') last_update_cleanliness: string = '' // For tracking last fed time
+  @type('string') lastUpdateHappiness: string = '' // For tracking last fed time
+  @type('string') lastUpdateHunger: string = '' // For tracking last fed time
+  @type('string') lastUpdateCleanliness: string = '' // For tracking last fed time
+  @type('boolean') isAdult: boolean = false
+  @type('number') tokenIncome: number = 0
+  @type('number') totalIncome: number = 0
+  @type('string') lastClaim: string = ''
 
   constructor() {
     super()

@@ -1,30 +1,30 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
+import { Document } from 'mongoose'
 
 export type PetStats = {
-  happiness: number; // 0 - 100
-  last_update_happiness: Date;
-  hunger: number; // 0 - 100
-  last_update_hunger: Date;
-  cleanliness: number; // 0 - 100
-  last_update_cleanliness: Date;
-};
+  happiness: number // 0 - 100
+  last_update_happiness: Date
+  hunger: number // 0 - 100
+  last_update_hunger: Date
+  cleanliness: number // 0 - 100
+  last_update_cleanliness: Date
+}
 
-export type PetTypeDocument = PetType & Document;
+export type PetTypeDocument = PetType & Document
 
 @Schema({ timestamps: true })
 export class PetType {
   @Prop({ type: String, required: true, unique: true })
-  name: string;
+  name: string
 
   @Prop({ type: Object, required: true })
-  default_stats: PetStats;
+  default_stats: PetStats
 
   @Prop({ type: String })
-  image_url: string;
+  image_url: string
 
   @Prop({ type: String })
-  description: string;
+  description: string
 
   @Prop({
     type: Object,
@@ -32,14 +32,26 @@ export class PetType {
     default: {
       happiness: { min: 1, max: 2 },
       hunger: { min: 2, max: 3 },
-      cleanliness: { min: 1, max: 2 },
-    },
+      cleanliness: { min: 1, max: 2 }
+    }
   })
   stat_decay: {
-    happiness: { min: number; max: number };
-    hunger: { min: number; max: number };
-    cleanliness: { min: number; max: number };
-  };
+    happiness: { min: number; max: number }
+    hunger: { min: number; max: number }
+    cleanliness: { min: number; max: number }
+  }
+
+  @Prop({ type: Number, required: true, default: 2 })
+  time_natural: number
+
+  @Prop({ type: Number, required: true, default: 100 })
+  max_income: number
+
+  @Prop({ type: Number, required: true, default: 5 })
+  income_per_claim: number
+
+  @Prop({ type: Number, required: true, default: 15 })
+  max_income_per_claim: number
 }
 
-export const PetTypeSchema = SchemaFactory.createForClass(PetType);
+export const PetTypeSchema = SchemaFactory.createForClass(PetType)
