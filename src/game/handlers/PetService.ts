@@ -64,7 +64,7 @@ export class PetService {
       return
     }
 
-    // Giá pet (có thể lấy từ config hoặc hardcode)
+    // Pet price (can be get from config or hardcode)
     // const PET_PRICE = GAME_CONFIG.PETS.PRICE || 100;
 
     const PET_PRICE = 50
@@ -78,19 +78,19 @@ export class PetService {
     }
 
     try {
-      // Trừ token
+      // Subtract token
       player.tokens -= PET_PRICE
 
-      // Lưu token mới vào DB
+      // Save new token to DB
       const dbService = DatabaseService.getInstance()
       const userModel = dbService.getUserModel()
       await userModel.updateOne(
         { wallet_address: player.walletAddress.toLowerCase() },
         { $inc: { tokens: -PET_PRICE } }
       )
-      console.log('update token mua pet nè, player.tokens: ', player.tokens)
+      console.log('update token buy pet, player.tokens: ', player.tokens)
 
-      // Tạo pet mới trong DB
+      // Create new pet in DB
       const petModel = dbService.getPetModel()
       const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
       if (!user) throw new Error('User not found in DB')
@@ -99,11 +99,11 @@ export class PetService {
         type: petType,
         stats: { hunger: 100, happiness: 100, cleanliness: 100 }
       })
-      newPetDoc.save()
+      await newPetDoc.save()
 
-      // Lấy lại danh sách pet mới nhất từ DB
+      // Get latest pet list from DB
       const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress)
-      // Cập nhật state cho player
+      // Update state for player
       if (!player.pets) player.pets = new MapSchema<Pet>()
       else player.pets.clear()
       petsFromDb.forEach((pet: Pet) => {
@@ -112,19 +112,19 @@ export class PetService {
       })
       player.totalPetsOwned = petsFromDb.length
 
-      // Gửi response về client
+      // Send response to client
       client.send('buy-pet-response', {
         success: true,
-        message: 'Mua pet thành công!',
+        message: 'Buy pet success!',
         currentTokens: player.tokens,
         pets: petsFromDb
       })
-      console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
+      console.log(`✅ Player ${player.name} buy pet success. Token remaining: ${player.tokens}`)
     } catch (err) {
-      console.error('❌ Lỗi khi mua pet:', err)
+      console.error('❌ Error when buy pet:', err)
       client.send('buy-pet-response', {
         success: false,
-        message: 'Lỗi khi mua pet',
+        message: 'Error when buy pet',
         currentTokens: player.tokens
       })
     }
