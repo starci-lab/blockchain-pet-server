@@ -23,13 +23,13 @@ export class PetService {
     })
 
     // Listen for pet removal events
-    eventBus.on('pet.remove', this.handleRemovePet.bind(this))
+    eventBus.on(MESSAGE_EVENT_BUS.PET.REMOVE, this.handleRemovePet.bind(this))
 
     // Listen for pet feeding events
-    eventBus.on('pet.feed', this.handleFeedPet.bind(this))
+    eventBus.on(MESSAGE_EVENT_BUS.PET.FEED, this.handleFeedPet.bind(this))
 
     // Listen for pet playing events
-    eventBus.on('pet.play', this.handlePlayWithPet.bind(this))
+    eventBus.on(MESSAGE_EVENT_BUS.PET.PLAY_WITH_PET, this.handlePlayWithPet.bind(this))
 
     // Listen for pet cleaning events
     eventBus.on('pet.clean', this.handleCleanPet.bind(this))
@@ -96,9 +96,10 @@ export class PetService {
 
   // Event handlers
   /**
-   * Kết hợp logic mua pet vào createPet:
-   * Nếu eventData có isBuyPet=true thì thực hiện logic mua pet (trừ token, tạo pet DB, đồng bộ lại pet),
-   * ngược lại chỉ tạo pet local (legacy, không dùng nữa)
+   * Handle buy pet event
+   * @param eventData PetEventData
+   * @returns Promise<void>
+   * @throws Error
    */
   private static isValidPetId(petId: string | undefined): petId is string {
     return typeof petId === 'string' && petId.length > 0
@@ -114,7 +115,7 @@ export class PetService {
 
     // Check if petType is valid
     if (!petType) {
-      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         message: 'Pet type not found'
       })
@@ -125,7 +126,7 @@ export class PetService {
       // Logic buy pet
       const PET_PRICE = 50
       if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           message: 'Not enough tokens',
           currentTokens: player.tokens
@@ -176,7 +177,7 @@ export class PetService {
         player.totalPetsOwned = petsFromDb.length
 
         // Gửi response về client
-        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: true,
           message: 'Mua pet thành công!',
           currentTokens: player.tokens,
@@ -191,7 +192,7 @@ export class PetService {
         console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
       } catch (err) {
         console.error('❌ Lỗi khi mua pet:', err)
-        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           message: 'Lỗi khi mua pet',
           currentTokens: player.tokens
@@ -286,7 +287,7 @@ export class PetService {
 
     const pet = room.state.pets.get(petId)
     if (!pet || pet.ownerId !== sessionId) {
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         action: 'feed',
         message: 'Cannot feed this pet'
@@ -299,7 +300,7 @@ export class PetService {
 
     if (foodQuantity <= 0) {
       console.log(`❌ ${player.name} doesn't have ${foodType} to feed pet`)
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         action: 'feed',
         message: `You don't have any ${foodType}`
@@ -316,7 +317,7 @@ export class PetService {
     this.feedPet(pet, 25) // Food restores 25 hunger points
 
     // Send success response with updated stats
-    client.send('action-response', {
+    client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
       success: true,
       action: 'feed',
       message: `Fed ${foodType} to your pet`,
@@ -353,7 +354,7 @@ export class PetService {
 
     if (!player || !pet || pet.ownerId !== sessionId) {
       console.log(`❌ Play with pet failed - invalid player/pet or ownership`)
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         action: 'play',
         message: 'Cannot play with this pet'
@@ -367,7 +368,7 @@ export class PetService {
     this.playWithPet(pet, 20)
 
     // Send success response with updated stats
-    client.send('action-response', {
+    client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
       success: true,
       action: 'play',
       message: 'Played with your pet',
@@ -399,7 +400,7 @@ export class PetService {
 
     if (!player || !pet || pet.ownerId !== sessionId) {
       console.log(`❌ Clean pet failed - invalid player/pet or ownership`)
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         action: 'clean',
         message: 'Cannot clean this pet'
@@ -413,7 +414,7 @@ export class PetService {
     this.cleanPet(pet, 30)
 
     // Send success response with updated stats
-    client.send('action-response', {
+    client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
       success: true,
       action: 'clean',
       message: 'Cleaned your pet',
@@ -578,7 +579,7 @@ export class PetService {
 
       if (!player || !pet || pet.ownerId !== sessionId) {
         console.log(`❌ Eated food failed - invalid player/pet or ownership`)
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'eated_food',
           message: 'Cannot eated food'
@@ -588,7 +589,7 @@ export class PetService {
 
       // Check if pet hunger is allowed to eat
       if (Number(pet.hunger) > Number(GAME_CONFIG.PETS.HUNGER_ALLOW_EAT)) {
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'eated_food',
           message: 'Cannot eated: pet hunger is full'
@@ -638,7 +639,7 @@ export class PetService {
       )
 
       if (!updatedPet) {
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'eated_food',
           message: 'Cannot eated: pet not found or not active'
@@ -646,7 +647,7 @@ export class PetService {
         return
       }
 
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: true,
         action: 'eated_food',
         message: 'Eated food'
@@ -655,7 +656,7 @@ export class PetService {
       return
     } catch (error) {
       console.error('❌ pet eated food error:', error)
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         action: 'eated_food',
         message: 'pet eated food error'
@@ -677,7 +678,7 @@ export class PetService {
 
       if (!player || !pet || sessionId !== pet.ownerId) {
         console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`)
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'cleaned_pet',
           message: 'Cannot cleaned pet'
@@ -687,7 +688,7 @@ export class PetService {
 
       // Check if pet cleanliness is allowed to clean
       if (pet.cleanliness > GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN) {
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'cleaned_pet',
           message: 'Cannot cleaned: pet cleanliness is full'
@@ -737,7 +738,7 @@ export class PetService {
       )
 
       if (!updatedPet) {
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'cleaned_pet',
           message: 'Cannot cleaned: pet not found or not active'
@@ -745,7 +746,7 @@ export class PetService {
         return
       }
 
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: true,
         action: 'cleaned_pet',
         message: 'Cleaned pet'
@@ -754,7 +755,7 @@ export class PetService {
       return
     } catch (error) {
       console.error('❌ pet cleaned error:', error)
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         action: 'cleaned_pet',
         message: 'Cannot cleaned: pet not found or not active'
@@ -774,7 +775,7 @@ export class PetService {
       const pet = room.state.pets.get(petId)
 
       if (!player || !pet || sessionId !== pet.ownerId) {
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'played_pet',
           message: 'Cannot play with pet'
@@ -784,7 +785,7 @@ export class PetService {
 
       // Check if pet is allowed to play
       if (Number(pet.happiness) > Number(GAME_CONFIG.PETS.HAPPINESS_ALLOW_PLAY)) {
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'played_pet',
           message: 'Cannot played: pet happiness is full'
@@ -833,7 +834,7 @@ export class PetService {
       )
 
       if (!updatedPet) {
-        client.send('action-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'played_pet',
           message: 'Cannot played: pet not found or not active'
@@ -841,7 +842,7 @@ export class PetService {
         return
       }
 
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: true,
         action: 'played_pet',
         message: 'Played pet'
@@ -850,7 +851,7 @@ export class PetService {
       return
     } catch (error) {
       console.error('❌ Lỗi khi chơi với pet:', error)
-      client.send('action-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
         success: false,
         action: 'played_pet',
         message: 'Cannot played: pet not found or not active'

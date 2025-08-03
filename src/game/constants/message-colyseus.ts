@@ -16,5 +16,8 @@ export const MESSAGE_EMMITERS_COLYSEUS = {
     BUY: 'create-pet-response',
     GET_STORE_CATALOG: 'get_store_catalog',
     GET_INVENTORY: 'get_inventory'
+  },
+  ACTION: {
+    RESPONSE: 'action_response'
   }
 }
