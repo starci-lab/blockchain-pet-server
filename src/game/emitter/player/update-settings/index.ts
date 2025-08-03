@@ -1,38 +1,38 @@
-import { Client } from 'colyseus';
-
-import { ResponseBuilder } from '../../../utils/ResponseBuilder';
-import { PlayerService } from 'src/game/handlers/PlayerService';
+import { Client } from 'colyseus'
+import { PlayerService } from 'src/game/handlers/PlayerService'
+import { GameRoom } from 'src/game/rooms/game.room'
+import { Player } from 'src/game/schemas/game-room.schema'
 
 // Player Settings Update Handler
-export const updatePlayerSettings = (room: any) => {
+export const updatePlayerSettings = (room: GameRoom) => {
   return async (
     client: Client,
     data: {
-      name?: string;
-      preferences?: any;
-    },
+      name?: string
+      preferences?: any
+    }
   ) => {
     try {
-      const player = room.state.players.get(client.sessionId);
+      const player: Player | undefined = room.state.players.get(client.sessionId)
       if (!player) {
         client.send('update-settings-response', {
           success: false,
-          message: 'Player not found',
-        });
-        return;
+          message: 'Player not found'
+        })
+        return
       }
 
-      console.log(`⚙️ Updating settings for ${player.name}:`, data);
+      console.log(`⚙️ Updating settings for ${player.name}:`, data)
 
       // Update player name if provided
       if (data.name && data.name.trim() !== '') {
-        const oldName = player.name;
-        player.name = data.name.trim();
-        console.log(`📝 Player name changed: ${oldName} -> ${player.name}`);
+        const oldName = player.name
+        player.name = data.name.trim()
+        console.log(`📝 Player name changed: ${oldName} -> ${player.name}`)
       }
 
       // Save updated player data
-      PlayerService.savePlayerData(player);
+      await PlayerService.savePlayerData(player)
 
       // Send response
       client.send('update-settings-response', {
@@ -41,21 +41,21 @@ export const updatePlayerSettings = (room: any) => {
         player: {
           name: player.name,
           tokens: player.tokens,
-          totalPetsOwned: player.totalPetsOwned,
-        },
-      });
+          totalPetsOwned: player.totalPetsOwned
+        }
+      })
 
       room.loggingService.logStateChange('PLAYER_SETTINGS_UPDATED', {
         playerId: client.sessionId,
         playerName: player.name,
-        changes: data,
-      });
+        changes: data
+      })
     } catch (error) {
-      console.error('❌ Error updating player settings:', error);
+      console.error('❌ Error updating player settings:', error)
       client.send('update-settings-response', {
         success: false,
-        message: 'Failed to update settings',
-      });
+        message: 'Failed to update settings'
+      })
     }
-  };
-};
+  }
+}
