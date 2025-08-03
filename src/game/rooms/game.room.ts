@@ -14,7 +14,7 @@ import { PlayerService } from 'src/game/handlers/PlayerService'
 import { PetService } from 'src/game/handlers/PetService'
 import { RoomOptions } from '../types/RoomTypes'
 import { GamePlayer } from '../types/GameTypes'
-import { MESSAGE_EMMITERS_COLYSEUS, MESSAGE_ON_COLYSEUS } from '../constants/message-colyseus'
+import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
 
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS // Single player only
@@ -53,13 +53,13 @@ export class GameRoom extends Room<GameRoomState> {
 
   private setupMessageHandlers() {
     // Pet emitters (emit events to PetService)
-    this.onMessage(MESSAGE_ON_COLYSEUS.PET.BUY, PetEmitters.buyPet(this))
-    this.onMessage(MESSAGE_ON_COLYSEUS.PET.REMOVE, PetEmitters.removePet(this))
-    this.onMessage(MESSAGE_ON_COLYSEUS.PET.FEED, PetEmitters.feedPet(this))
-    this.onMessage(MESSAGE_ON_COLYSEUS.PET.PLAY_WITH, PetEmitters.playWithPet(this))
-    this.onMessage(MESSAGE_ON_COLYSEUS.PET.EATED_FOOD, PetEmitters.eatedFood(this))
-    this.onMessage(MESSAGE_ON_COLYSEUS.PET.CLEANED, PetEmitters.cleanedPet(this))
-    this.onMessage(MESSAGE_ON_COLYSEUS.PET.PLAYED, PetEmitters.playedPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.BUY, PetEmitters.buyPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.REMOVE, PetEmitters.removePet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.FEED, PetEmitters.feedPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.PLAY_WITH, PetEmitters.playWithPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.EATED_FOOD, PetEmitters.eatedFood(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.CLEANED, PetEmitters.cleanedPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.PLAYED, PetEmitters.playedPet(this))
 
     // Food emitters (emit events to InventoryService)
     this.onMessage('buy_food', FoodEmitters.purchaseItem(this))
@@ -173,11 +173,11 @@ export class GameRoom extends Room<GameRoomState> {
         player.pets.set(pet.id, pet)
       })
       player.totalPetsOwned = petsFromDb.length
-      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(petsFromDb))
+      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(petsFromDb))
       console.log(`📤 Synced ${petsFromDb.length} pets from DB for ${player.name}`)
     } catch (err) {
       console.error(`❌ Failed to sync pets from DB for ${player.name}:`, err)
-      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync([]))
+      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync([]))
     }
   }
 

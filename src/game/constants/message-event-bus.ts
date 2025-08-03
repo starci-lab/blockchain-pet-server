@@ -1,4 +1,4 @@
-export const MESSAGE_EVENT_BUS = {
+export const EMITTER_EVENT_BUS = {
   PET: {
     BUY: 'pet.buy',
     REMOVE: 'pet.remove',

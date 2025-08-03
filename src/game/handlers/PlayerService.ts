@@ -6,7 +6,7 @@ import { InventoryService } from './InventoryService'
 import { DatabaseService } from '../services/DatabaseService'
 import { Types } from 'mongoose'
 import { DBPet } from '../types/GameTypes'
-import { MESSAGE_EMMITERS_COLYSEUS } from '../constants/message-colyseus'
+import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
 
 interface DatabaseUser {
   _id: Types.ObjectId
@@ -687,7 +687,7 @@ export class PlayerService {
     const player = room.state.players.get(sessionId)
 
     if (!player) {
-      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, {
+      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, {
         success: false,
         message: 'Player not found',
         pets: []
@@ -719,7 +719,7 @@ export class PlayerService {
       )
 
       // Send pets state sync
-      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, {
+      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, {
         success: true,
         pets: allPets.map((pet) => this.convertPetToStateFormat(pet)),
         totalPets: allPets.length
@@ -729,7 +729,7 @@ export class PlayerService {
     } catch (error: unknown) {
       console.error(`❌ Error getting pets state for ${player.name}:`, error)
 
-      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, {
+      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, {
         success: false,
         message: 'Failed to get pets state',
         pets: [],
