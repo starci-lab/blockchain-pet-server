@@ -115,7 +115,7 @@ export class PetService {
 
     // Check if petType is valid
     if (!petType) {
-      client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY_PET_RESPONSE, {
         success: false,
         message: 'Pet type not found'
       })
@@ -126,7 +126,7 @@ export class PetService {
       // Logic buy pet
       const PET_PRICE = 50
       if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY_PET_RESPONSE, {
           success: false,
           message: 'Not enough tokens',
           currentTokens: player.tokens
@@ -177,7 +177,7 @@ export class PetService {
         player.totalPetsOwned = petsFromDb.length
 
         // Gửi response về client
-        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY_PET_RESPONSE, {
           success: true,
           message: 'Mua pet thành công!',
           currentTokens: player.tokens,
@@ -192,7 +192,7 @@ export class PetService {
         console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
       } catch (err) {
         console.error('❌ Lỗi khi mua pet:', err)
-        client.send(MESSAGE_EMMITERS_COLYSEUS.ACTION.RESPONSE, {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY_PET_RESPONSE, {
           success: false,
           message: 'Lỗi khi mua pet',
           currentTokens: player.tokens
@@ -273,7 +273,7 @@ export class PetService {
     console.log('🔄 Sending pets-state-sync after remove pet...')
     const playerPets = this.getPlayerPets(player)
     console.log(`📤 Player ${player.name} has ${playerPets.length} pets remaining`)
-    client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
+    client.send(MESSAGE_EMMITERS_COLYSEUS.PET.REMOVE_PET_RESPONSE, ResponseBuilder.petsStateSync(playerPets))
 
     console.log(`✅ Pet ${petId} removed for ${player.name}. Remaining pets: ${player.totalPetsOwned}`)
   }
