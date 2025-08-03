@@ -40,12 +40,12 @@ export class PetService {
     })
 
     // Listen for pet cleaned events - wrapped to handle async
-    eventBus.on('pet.cleaned', (eventData: PetEventData) => {
+    eventBus.on(MESSAGE_EVENT_BUS.PET.CLEANED_PET, (eventData: PetEventData) => {
       this.handleCleanedPet(eventData).catch(console.error)
     })
 
     // Listen for pet played events - wrapped to handle async
-    eventBus.on('pet.played', (eventData: PetEventData) => {
+    eventBus.on(MESSAGE_EVENT_BUS.PET.PLAYED_PET, (eventData: PetEventData) => {
       this.handlePlayedPet(eventData).catch(console.error)
     })
 

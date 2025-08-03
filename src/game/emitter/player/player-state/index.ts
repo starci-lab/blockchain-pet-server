@@ -3,6 +3,7 @@ import { ResponseBuilder } from '../../../utils/ResponseBuilder'
 import { PetService } from 'src/game/handlers/PetService'
 import { InventoryService } from 'src/game/handlers/InventoryService'
 import { GameRoom } from 'src/game/rooms/game.room'
+import { MESSAGE_EMMITERS_COLYSEUS } from 'src/game/constants/message-colyseus'
 
 // Player State Request Module
 export const requestPlayerState = (room: GameRoom) => {

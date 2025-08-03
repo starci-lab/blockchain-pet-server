@@ -5,7 +5,7 @@ export const MESSAGE_EVENT_BUS = {
     FEED: 'pet.feed',
     PLAY_WITH_PET: 'pet.play_with_pet',
     EATED_FOOD: 'pet.eated_food',
-    CLEANED_PET: 'cleaned_pet',
-    PLAYED_PET: 'played_pet'
+    CLEANED_PET: 'pet.cleaned_pet',
+    PLAYED_PET: 'pet.played_pet'
   }
 }

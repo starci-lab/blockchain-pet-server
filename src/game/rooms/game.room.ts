@@ -58,8 +58,8 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage(MESSAGE_ON_COLYSEUS.PET.FEED, PetEmitters.feedPet(this))
     this.onMessage(MESSAGE_ON_COLYSEUS.PET.PLAY_WITH, PetEmitters.playWithPet(this))
     this.onMessage(MESSAGE_ON_COLYSEUS.PET.EATED_FOOD, PetEmitters.eatedFood(this))
-    this.onMessage('cleaned_pet', PetEmitters.cleanedPet(this))
-    this.onMessage('played_pet', PetEmitters.playedPet(this))
+    this.onMessage(MESSAGE_ON_COLYSEUS.PET.CLEANED, PetEmitters.cleanedPet(this))
+    this.onMessage(MESSAGE_ON_COLYSEUS.PET.PLAYED, PetEmitters.playedPet(this))
 
     // Food emitters (emit events to InventoryService)
     this.onMessage('buy_food', FoodEmitters.purchaseItem(this))

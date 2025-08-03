@@ -80,7 +80,7 @@ export class PetEmitters {
     console.log('cleanedPet', room)
     return (client: Client, data: { cleanliness_level: number; pet_id: string; owner_id: string }) => {
       // Emit event to PetService for processing
-      eventBus.emit('pet.cleaned', {
+      eventBus.emit(MESSAGE_EVENT_BUS.PET.CLEANED_PET, {
         sessionId: client.sessionId,
         petId: data.pet_id,
         cleanlinessLevel: data.cleanliness_level,
@@ -93,7 +93,7 @@ export class PetEmitters {
   static playedPet(room: GameRoom) {
     return (client: Client, data: { happiness_level: number; pet_id: string; owner_id: string }) => {
       // Emit event to PetService for processing
-      eventBus.emit('pet.played', {
+      eventBus.emit(MESSAGE_EVENT_BUS.PET.PLAYED_PET, {
         sessionId: client.sessionId,
         petId: data.pet_id,
         happinessLevel: data.happiness_level,
