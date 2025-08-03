@@ -1,10 +1,10 @@
-import { Client } from 'colyseus';
-import { ResponseBuilder } from '../../../utils/ResponseBuilder';
+import { Client } from 'colyseus'
+import { GameRoom } from 'src/game/rooms/game.room'
 
 // Game Config Handler
-export const requestGameConfig = (room: any) => {
+export const requestGameConfig = (room: GameRoom) => {
   return (client: Client) => {
-    console.log(`⚙️ Game config requested by ${client.sessionId}`);
+    console.log(`⚙️ Game config requested by ${client.sessionId}`)
 
     try {
       const gameConfig = {
@@ -17,7 +17,7 @@ export const requestGameConfig = (room: any) => {
           maxCleanliness: 100,
           hungerDecayRate: 1, // per minute
           happinessDecayRate: 0.5,
-          cleanlinessDecayRate: 0.3,
+          cleanlinessDecayRate: 0.3
         },
         shop: {
           items: [
@@ -30,31 +30,31 @@ export const requestGameConfig = (room: any) => {
               type: 'cleaning',
               name: 'Soap',
               price: 8,
-              cleanliness: 30,
-            },
-          ],
+              cleanliness: 30
+            }
+          ]
         },
         dailyRewards: {
           tokens: 50,
-          items: [{ type: 'food', name: 'apple', quantity: 3 }],
-        },
-      };
+          items: [{ type: 'food', name: 'apple', quantity: 3 }]
+        }
+      }
 
       client.send('game-config', {
         success: true,
-        config: gameConfig,
-      });
+        config: gameConfig
+      })
 
       room.loggingService?.logStateChange('GAME_CONFIG_REQUESTED', {
         playerId: client.sessionId,
-        timestamp: new Date().toISOString(),
-      });
+        timestamp: new Date().toISOString()
+      })
     } catch (error) {
-      console.error('❌ Error sending game config:', error);
+      console.error('❌ Error sending game config:', error)
       client.send('game-config', {
         success: false,
-        message: 'Failed to load game configuration',
-      });
+        message: 'Failed to load game configuration'
+      })
     }
-  };
-};
+  }
+}

@@ -1,48 +1,48 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 
 type StatEffect = {
-  hunger?: number;
-  happiness?: number;
-  cleanliness?: number;
-  duration?: number; // optional - cho hiệu ứng kéo dài theo thời gian (future)
-};
+  hunger?: number
+  happiness?: number
+  cleanliness?: number
+  duration?: number // optional - add duration (future)
+}
 
 export enum StoreItemType {
   Food = 'food',
   Toy = 'toy',
   Soap = 'soap',
   Furniture = 'furniture',
-  Decor = 'decor',
-  // bạn có thể bổ sung sau nếu cần
+  Decor = 'decor'
+  // you can add more types if needed
 }
 
-export type StoreItemDocument = StoreItem & Document;
+export type StoreItemDocument = StoreItem & Document
 @Schema({ timestamps: true })
 export class StoreItem {
   @Prop({
     type: String,
-    unique: true,
+    unique: true
   })
-  name: string;
+  name: string
 
   @Prop({
     type: String,
     enum: StoreItemType,
-    required: true,
+    required: true
   })
-  type: StoreItemType;
+  type: StoreItemType
 
   @Prop({
     type: String,
-    unique: true,
+    unique: true
   })
-  description: string;
+  description: string
 
   @Prop({ type: Number, default: 0 })
-  cost_nom: number;
+  cost_nom: number
 
   @Prop({ type: Object })
-  effect: StatEffect;
+  effect: StatEffect
 }
 
-export const StoreItemSchema = SchemaFactory.createForClass(StoreItem);
+export const StoreItemSchema = SchemaFactory.createForClass(StoreItem)

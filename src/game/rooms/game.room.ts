@@ -133,7 +133,7 @@ export class GameRoom extends Room<GameRoomState> {
       this.state.players.set(client.sessionId, player)
       this.state.playerCount = this.state.players.size
 
-      this.handleNewPlayerPets(client, player)
+      await this.handleNewPlayerPets(client, player)
       this.loggingService.logPlayerJoined(player as GamePlayer)
       this.sendWelcomeMessage(client, player)
 
@@ -151,7 +151,7 @@ export class GameRoom extends Room<GameRoomState> {
       this.state.players.set(client.sessionId, fallbackPlayer)
       this.state.playerCount = this.state.players.size
 
-      this.handleNewPlayerPets(client, fallbackPlayer)
+      await this.handleNewPlayerPets(client, fallbackPlayer)
       this.sendWelcomeMessage(client, fallbackPlayer)
 
       console.log(`⚠️ Created fallback player for ${client.sessionId}`)

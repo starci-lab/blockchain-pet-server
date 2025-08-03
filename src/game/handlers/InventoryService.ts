@@ -72,15 +72,23 @@ export class InventoryService {
     }
 
     const itemConfig = categoryItems[itemName]
-    this.purchaseItem(player, itemType, itemName, quantity, itemConfig.price).then((result) => {
-      const inventorySummary = this.getInventorySummary(player)
-      client.send('purchase-response', {
-        success: result.success,
-        message: result.message,
-        currentTokens: result.currentTokens,
-        inventory: inventorySummary
+    this.purchaseItem(player, itemType, itemName, quantity, itemConfig.price)
+      .then((result) => {
+        const inventorySummary = this.getInventorySummary(player)
+        client.send('purchase-response', {
+          success: result.success,
+          message: result.message,
+          currentTokens: result.currentTokens,
+          inventory: inventorySummary
+        })
       })
-    })
+      .catch((error) => {
+        console.error('❌ Error purchasing item:', error)
+        client.send('purchase-response', {
+          success: false,
+          message: 'Failed to purchase item'
+        })
+      })
   }
 
   static handleGetCatalog(eventData: CatalogEventData) {

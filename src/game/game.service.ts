@@ -100,10 +100,10 @@ export class GameService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  onApplicationShutdown(signal?: string) {
+  async onApplicationShutdown(signal?: string) {
     console.log(`🛑 Shutting down Game Service... Signal: ${signal}`)
     if (this.gameServer) {
-      this.gameServer.gracefullyShutdown()
+      await this.gameServer.gracefullyShutdown()
       console.log('✅ Game server shutdown complete')
     }
   }
