@@ -16,7 +16,9 @@ export class PetService {
     console.log('🎧 Initializing PetService event listeners...')
 
     // Listen for pet creation events
-    eventBus.on('pet.create', this.handleCreatePet.bind(this))
+    eventBus.on('pet.create', (eventData: PetEventData) => {
+      this.handleCreatePet(eventData).catch(console.error)
+    })
 
     // Listen for pet removal events
     eventBus.on('pet.remove', this.handleRemovePet.bind(this))
@@ -182,18 +184,112 @@ export class PetService {
     return typeof petId === 'string' && petId.length > 0
   }
 
-  static handleCreatePet(eventData: PetEventData) {
-    const { sessionId, petId, petType, room, client } = eventData
-    if (!this.isValidPetId(petId)) return
-
+  static async handleCreatePet(eventData: PetEventData) {
+    const { sessionId, petType, room, client, isBuyPet } = eventData
     const player = room.state.players.get(sessionId)
-    if (!player) return
 
+    let petId: string = ''
+
+    if (!player) return
+    console.log(12312312, player.walletAddress.toLowerCase())
+
+    // Check if petType is valid
+    if (!petType) {
+      client.send('create-pet-response', {
+        success: false,
+        message: 'Pet type not found'
+      })
+      return
+    }
+
+    if (isBuyPet) {
+      // Logic buy pet
+      const PET_PRICE = 50
+      if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
+        client.send('buy-pet-response', {
+          success: false,
+          message: 'Not enough tokens',
+          currentTokens: player.tokens
+        })
+        return
+      }
+      try {
+        // Trừ token
+        player.tokens -= PET_PRICE
+
+        // Lưu token mới vào DB
+        const dbService = DatabaseService.getInstance()
+        const userModel = dbService.getUserModel()
+        await userModel.updateOne(
+          { wallet_address: player.walletAddress.toLowerCase() },
+          { $inc: { token_nom: -PET_PRICE } }
+        )
+        // Tạo pet mới trong DB
+        const petModel = dbService.getPetModel()
+        //TODO: find by type pet ID
+        const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
+        if (!user) throw new Error('User not found in DB')
+
+        const createdPetDoc = await petModel.create({
+          owner_id: user._id,
+          type: '6869e7a0bae4412d2195d11c',
+          stats: {
+            hunger: 100,
+            happiness: 100,
+            cleanliness: 100,
+            last_update_happiness: new Date(),
+            last_update_hunger: new Date(),
+            last_update_cleanliness: new Date()
+          }
+        })
+        await createdPetDoc.save()
+        petId = (createdPetDoc._id as Types.ObjectId).toString()
+
+        // Lấy lại danh sách pet mới nhất từ DB
+        const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress)
+        // Cập nhật state cho player
+        if (!player.pets) player.pets = new MapSchema<Pet>()
+        else player.pets.clear()
+        petsFromDb.forEach((pet: Pet) => {
+          room.state.pets.set(pet.id, pet)
+          player.pets.set(pet.id, pet)
+        })
+        player.totalPetsOwned = petsFromDb.length
+
+        // Gửi response về client
+        client.send('buy-pet-response', {
+          success: true,
+          message: 'Mua pet thành công!',
+          currentTokens: player.tokens,
+          pets: petsFromDb
+        })
+        room.loggingService.logStateChange('PET_BOUGHT', {
+          petType,
+          ownerId: sessionId,
+          ownerName: player.name,
+          totalPets: player.totalPetsOwned
+        })
+        console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
+      } catch (err) {
+        console.error('❌ Lỗi khi mua pet:', err)
+        client.send('buy-pet-response', {
+          success: false,
+          message: 'Lỗi khi mua pet',
+          currentTokens: player.tokens
+        })
+      }
+      return
+    }
+
+    // Legacy: tạo pet local (không dùng nữa, chỉ fallback nếu cần)
     console.log(`🐕 [Service] Creating pet ${petId} for ${player.name}`)
 
     const pet = this.createPet(petId, sessionId, petType)
+
+    // Add pet to room state
     room.state.pets.set(petId, pet)
 
+    // Add pet to player's pets collection
     if (!player.pets) {
       player.pets = new MapSchema<Pet>()
     }

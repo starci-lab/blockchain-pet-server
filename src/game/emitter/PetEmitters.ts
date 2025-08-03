@@ -24,7 +24,6 @@ export class PetEmitters {
       // Emit event to PetService for processing
       eventBus.emit('pet.create', {
         sessionId: client.sessionId,
-        petId: data.petId,
         petType: data.petType,
         room,
         client,
