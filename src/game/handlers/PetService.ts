@@ -35,7 +35,7 @@ export class PetService {
     eventBus.on('pet.clean', this.handleCleanPet.bind(this))
 
     // Listen for pet eated food events - wrapped to handle async
-    eventBus.on('pet.eated_food', (eventData: PetEventData) => {
+    eventBus.on(MESSAGE_EVENT_BUS.PET.EATED_FOOD, (eventData: PetEventData) => {
       this.handleEatedFood(eventData).catch(console.error)
     })
 
