@@ -1,4 +1,3 @@
-
 import { Player, InventoryItem } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
@@ -7,6 +6,7 @@ import { InventoryService } from './InventoryService'
 import { DatabaseService } from '../services/DatabaseService'
 import { Types } from 'mongoose'
 import { DBPet } from '../types/GameTypes'
+import { MESSAGE_EMMITERS_COLYSEUS } from '../constants/message-colyseus'
 
 interface DatabaseUser {
   _id: Types.ObjectId
@@ -216,11 +216,11 @@ export class PlayerService {
 
       if (walletAddress) {
         // Find user by wallet address
-        user = await userModel
+        user = (await userModel
           .findOne({
             wallet_address: walletAddress.toLowerCase()
           })
-          .exec() as DatabaseUser | null
+          .exec()) as DatabaseUser | null
       }
 
       if (!user) {
@@ -247,7 +247,7 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = await petModel.find({ owner_id: user._id }).populate('type').exec() as DatabasePet[]
+      const userPets = (await petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
 
       console.log(`🐕 Found ${userPets.length} pets for user ${user.wallet_address}`)
 
@@ -292,7 +292,7 @@ export class PlayerService {
       console.error(`❌ Error fetching profile from DB for ${player.name}:`, error)
 
       // Fallback to in-memory data if DB query fails
-      const inventorySummary = InventoryService.getInventorySummary(player)      // Get wallet address for fallback profile
+      const inventorySummary = InventoryService.getInventorySummary(player) // Get wallet address for fallback profile
       let fallbackWallet = player.walletAddress
       if (!fallbackWallet) {
         const sessionWallet = this.getWalletFromSession(sessionId)
@@ -436,11 +436,11 @@ export class PlayerService {
       let user: DatabaseUser | null = null
 
       if (addressWallet) {
-        user = await userModel
+        user = (await userModel
           .findOne({
             wallet_address: addressWallet.toLowerCase()
           })
-          .exec() as DatabaseUser | null
+          .exec()) as DatabaseUser | null
       }
 
       if (user) {
@@ -462,7 +462,7 @@ export class PlayerService {
       console.warn(`⚠️ Failed to fetch user data from DB, using defaults:`, error)
       return this.getDefaultUserData(sessionId)
     }
-    
+
     return this.getDefaultUserData(sessionId)
   }
 
@@ -560,11 +560,11 @@ export class PlayerService {
       const petModel = dbService.getPetModel()
 
       // Find user by wallet address
-      const user = await userModel
+      const user = (await userModel
         .findOne({
           wallet_address: walletAddress.toLowerCase()
         })
-        .exec() as DatabaseUser | null
+        .exec()) as DatabaseUser | null
 
       if (!user) {
         console.log(`👤 New user ${walletAddress}, no pets to sync`)
@@ -572,7 +572,7 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = await petModel.find({ owner_id: user._id }).populate('type').exec() as DatabasePet[]
+      const userPets = (await petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
 
       if (userPets.length > 0) {
         // Use PetService to sync pets to player state
@@ -687,7 +687,7 @@ export class PlayerService {
     const player = room.state.players.get(sessionId)
 
     if (!player) {
-      client.send('pets-state-sync', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, {
         success: false,
         message: 'Player not found',
         pets: []
@@ -719,7 +719,7 @@ export class PlayerService {
       )
 
       // Send pets state sync
-      client.send('pets-state-sync', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, {
         success: true,
         pets: allPets.map((pet) => this.convertPetToStateFormat(pet)),
         totalPets: allPets.length
@@ -729,7 +729,7 @@ export class PlayerService {
     } catch (error: unknown) {
       console.error(`❌ Error getting pets state for ${player.name}:`, error)
 
-      client.send('pets-state-sync', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, {
         success: false,
         message: 'Failed to get pets state',
         pets: [],

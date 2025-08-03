@@ -9,6 +9,8 @@ import { PetStatus } from 'src/api/pet/schemas/pet.schema'
 import { PetEventData, DBPet } from '../types/GameTypes'
 import { Types } from 'mongoose'
 import { PetStats as GamePetStats } from '../types/GameTypes'
+import { MESSAGE_EVENT_BUS } from '../constants/message-event-bus'
+import { MESSAGE_EMMITERS_COLYSEUS } from '../constants/message-colyseus'
 
 export class PetService {
   // Initialize event listeners
@@ -16,8 +18,8 @@ export class PetService {
     console.log('🎧 Initializing PetService event listeners...')
 
     // Listen for pet creation events
-    eventBus.on('pet.create', (eventData: PetEventData) => {
-      this.handleCreatePet(eventData).catch(console.error)
+    eventBus.on(MESSAGE_EVENT_BUS.PET.BUY, (eventData: PetEventData) => {
+      this.handleBuyPet(eventData).catch(console.error)
     })
 
     // Listen for pet removal events
@@ -31,11 +33,6 @@ export class PetService {
 
     // Listen for pet cleaning events
     eventBus.on('pet.clean', this.handleCleanPet.bind(this))
-
-    // Listen for pet buy events (mua pet mới) - wrapped to handle async
-    eventBus.on('pet.buy', (eventData: PetEventData) => {
-      this.handleBuyPet(eventData).catch(console.error)
-    })
 
     // Listen for pet eated food events - wrapped to handle async
     eventBus.on('pet.eated_food', (eventData: PetEventData) => {
@@ -53,83 +50,6 @@ export class PetService {
     })
 
     console.log('✅ PetService event listeners initialized')
-  }
-
-  static async handleBuyPet(eventData: PetEventData) {
-    const { sessionId, petType, room, client } = eventData
-    const player = room.state.players.get(sessionId)
-    if (!player || !petType) {
-      client.send('buy-pet-response', {
-        success: false,
-        message: 'Player or pet type not found'
-      })
-      return
-    }
-
-    // Pet price (can be get from config or hardcode)
-    // const PET_PRICE = GAME_CONFIG.PETS.PRICE || 100;
-
-    const PET_PRICE = 50
-    if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-      client.send('buy-pet-response', {
-        success: false,
-        message: 'Not enough tokens',
-        currentTokens: player.tokens
-      })
-      return
-    }
-
-    try {
-      // Subtract token
-      player.tokens -= PET_PRICE
-
-      // Save new token to DB
-      const dbService = DatabaseService.getInstance()
-      const userModel = dbService.getUserModel()
-      await userModel.updateOne(
-        { wallet_address: player.walletAddress.toLowerCase() },
-        { $inc: { tokens: -PET_PRICE } }
-      )
-      console.log('update token buy pet, player.tokens: ', player.tokens)
-
-      // Create new pet in DB
-      const petModel = dbService.getPetModel()
-      const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
-      if (!user) throw new Error('User not found in DB')
-      const newPetDoc = await petModel.create({
-        owner_id: user._id,
-        type: petType,
-        stats: { hunger: 100, happiness: 100, cleanliness: 100 }
-      })
-      await newPetDoc.save()
-
-      // Get latest pet list from DB
-      const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress)
-      // Update state for player
-      if (!player.pets) player.pets = new MapSchema<Pet>()
-      else player.pets.clear()
-      petsFromDb.forEach((pet: Pet) => {
-        room.state.pets.set(pet.id, pet)
-        player.pets.set(pet.id, pet)
-      })
-      player.totalPetsOwned = petsFromDb.length
-
-      // Send response to client
-      client.send('buy-pet-response', {
-        success: true,
-        message: 'Buy pet success!',
-        currentTokens: player.tokens,
-        pets: petsFromDb
-      })
-      console.log(`✅ Player ${player.name} buy pet success. Token remaining: ${player.tokens}`)
-    } catch (err) {
-      console.error('❌ Error when buy pet:', err)
-      client.send('buy-pet-response', {
-        success: false,
-        message: 'Error when buy pet',
-        currentTokens: player.tokens
-      })
-    }
   }
 
   /**
@@ -184,18 +104,17 @@ export class PetService {
     return typeof petId === 'string' && petId.length > 0
   }
 
-  static async handleCreatePet(eventData: PetEventData) {
+  static async handleBuyPet(eventData: PetEventData) {
     const { sessionId, petType, room, client, isBuyPet } = eventData
     const player = room.state.players.get(sessionId)
 
     let petId: string = ''
 
     if (!player) return
-    console.log(12312312, player.walletAddress.toLowerCase())
 
     // Check if petType is valid
     if (!petType) {
-      client.send('create-pet-response', {
+      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
         success: false,
         message: 'Pet type not found'
       })
@@ -206,7 +125,7 @@ export class PetService {
       // Logic buy pet
       const PET_PRICE = 50
       if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-        client.send('buy-pet-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
           success: false,
           message: 'Not enough tokens',
           currentTokens: player.tokens
@@ -257,7 +176,7 @@ export class PetService {
         player.totalPetsOwned = petsFromDb.length
 
         // Gửi response về client
-        client.send('buy-pet-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
           success: true,
           message: 'Mua pet thành công!',
           currentTokens: player.tokens,
@@ -272,7 +191,7 @@ export class PetService {
         console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
       } catch (err) {
         console.error('❌ Lỗi khi mua pet:', err)
-        client.send('buy-pet-response', {
+        client.send(MESSAGE_EMMITERS_COLYSEUS.PET.BUY, {
           success: false,
           message: 'Lỗi khi mua pet',
           currentTokens: player.tokens
@@ -310,7 +229,7 @@ export class PetService {
     console.log('🔄 Sending pets-state-sync after create pet...')
     const playerPets = this.getPlayerPets(player)
     console.log(`📤 Player ${player.name} has ${playerPets.length} pets to sync`)
-    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets))
+    client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
     console.log(`✅ Pet ${petId} created for ${player.name}. Total pets: ${player.totalPetsOwned}`)
   }
@@ -353,7 +272,7 @@ export class PetService {
     console.log('🔄 Sending pets-state-sync after remove pet...')
     const playerPets = this.getPlayerPets(player)
     console.log(`📤 Player ${player.name} has ${playerPets.length} pets remaining`)
-    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets))
+    client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
     console.log(`✅ Pet ${petId} removed for ${player.name}. Remaining pets: ${player.totalPetsOwned}`)
   }
@@ -409,7 +328,7 @@ export class PetService {
     console.log('🔄 Sending pets-state-sync after feed pet...')
     const playerPets = this.getPlayerPets(player)
     console.log(`📤 Syncing ${playerPets.length} pets with updated stats`)
-    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets))
+    client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
     room.loggingService.logStateChange('PET_FED', {
       petId,
@@ -457,7 +376,7 @@ export class PetService {
 
     // Also sync updated pets state to client
     const playerPets = this.getPlayerPets(player)
-    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets))
+    client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
     room.loggingService.logStateChange('PET_PLAYED', {
       petId,
@@ -503,7 +422,7 @@ export class PetService {
 
     // Also sync updated pets state to client
     const playerPets = this.getPlayerPets(player)
-    client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets))
+    client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
     room.loggingService.logStateChange('PET_CLEANED', {
       petId,

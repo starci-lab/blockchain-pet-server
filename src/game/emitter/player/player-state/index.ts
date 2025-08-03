@@ -24,7 +24,7 @@ export const requestPlayerState = (room: GameRoom) => {
 
       // Also send pets state for this player
       const playerPets = PetService.getPlayerPets(player)
-      client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets))
+      client.send(MESSAGE_EMMITERS_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
       // Send inventory state
       const inventory = InventoryService.getInventorySummary(player)
