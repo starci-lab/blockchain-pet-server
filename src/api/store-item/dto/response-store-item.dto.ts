@@ -1,16 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger'
-import { IsString, IsNotEmpty, IsEnum, IsNumber, IsOptional, ValidateNested } from 'class-validator'
-import { Type } from 'class-transformer'
 import { StoreItemType } from '../schemas/store-item.schema'
 
-export class StatEffectDto {
+export class StatEffectResponseDto {
   @ApiProperty({
     description: 'Hunger effect value',
     example: 20,
     required: false
   })
-  @IsOptional()
-  @IsNumber()
   hunger?: number
 
   @ApiProperty({
@@ -18,8 +14,6 @@ export class StatEffectDto {
     example: 15,
     required: false
   })
-  @IsOptional()
-  @IsNumber()
   happiness?: number
 
   @ApiProperty({
@@ -27,8 +21,6 @@ export class StatEffectDto {
     example: 10,
     required: false
   })
-  @IsOptional()
-  @IsNumber()
   cleanliness?: number
 
   @ApiProperty({
@@ -36,18 +28,20 @@ export class StatEffectDto {
     example: 60,
     required: false
   })
-  @IsOptional()
-  @IsNumber()
   duration?: number
 }
 
-export class CreateStoreItemDto {
+export class ResponseStoreItemDto {
+  @ApiProperty({
+    description: 'Store item ID',
+    example: '60c72b2f9b1e8b001c8e4d3a'
+  })
+  _id: string
+
   @ApiProperty({
     description: 'Name of the store item',
     example: 'Premium Dog Food'
   })
-  @IsString()
-  @IsNotEmpty()
   name: string
 
   @ApiProperty({
@@ -55,52 +49,51 @@ export class CreateStoreItemDto {
     enum: StoreItemType,
     example: StoreItemType.Food
   })
-  @IsEnum(StoreItemType)
-  @IsNotEmpty()
   type: StoreItemType
 
   @ApiProperty({
     description: 'Description of the store item',
     example: 'High-quality dog food that increases hunger satisfaction'
   })
-  @IsString()
-  @IsNotEmpty()
   description: string
 
   @ApiProperty({
     description: 'Cost in NOM tokens',
-    example: 100,
-    default: 0
+    example: 100
   })
-  @IsOptional()
-  @IsNumber()
-  cost_nom?: number
+  cost_nom: number
 
   @ApiProperty({
     description: 'Stat effects of the item',
-    type: StatEffectDto,
+    type: StatEffectResponseDto,
     required: false
   })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => StatEffectDto)
-  effect?: StatEffectDto
+  effect?: StatEffectResponseDto
 
   @ApiProperty({
     description: 'Image URL of the store item',
     example: 'https://example.com/dog_food.jpg',
     required: false
   })
-  @IsOptional()
-  @IsString()
   image?: string
 
   @ApiProperty({
-    description: 'ID of the associated pet type',
-    example: '60c72b2f9b1e8b001c8e4d3a',
+    description: 'Associated pet type IDs',
+    example: ['60c72b2f9b1e8b001c8e4d3a'],
+    type: [String],
     required: false
   })
-  @IsOptional()
-  @IsString()
-  petTypeId?: string
+  petTypeId?: string[]
+
+  @ApiProperty({
+    description: 'Creation timestamp',
+    example: '2023-01-01T00:00:00.000Z'
+  })
+  createdAt: Date
+
+  @ApiProperty({
+    description: 'Last update timestamp',
+    example: '2023-01-01T00:00:00.000Z'
+  })
+  updatedAt: Date
 }
