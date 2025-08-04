@@ -2,27 +2,15 @@ import { Client } from 'colyseus'
 import { CreatePetData, RemovePetData } from '../types/MessageTypes'
 import { eventBus } from 'src/shared/even-bus'
 import { GameRoom } from '../rooms/game.room'
+import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
 
 export class PetEmitters {
-  // Buy pet emitter: nhận request mua pet từ client, emit event cho PetService xử lý
   static buyPet(room: GameRoom) {
-    return (client: Client, data: { petType: string }) => {
-      console.log(`🛒 [Handler] Buy pet request:`, data)
-      // Emit event để PetService xử lý logic mua pet
-      eventBus.emit('pet.buy', {
-        sessionId: client.sessionId,
-        petType: data.petType,
-        room,
-        client
-      })
-    }
-  }
-  static createPet(room: GameRoom) {
     return (client: Client, data: CreatePetData) => {
       console.log(`🐕 [Handler] Create pet request:`, data)
 
       // Emit event to PetService for processing
-      eventBus.emit('pet.create', {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.BUY, {
         sessionId: client.sessionId,
         petType: data.petType,
         room,
@@ -37,7 +25,7 @@ export class PetEmitters {
       console.log(`🗑️ [Handler] Remove pet request:`, data)
 
       // Emit event to PetService for processing
-      eventBus.emit('pet.remove', {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.REMOVE, {
         sessionId: client.sessionId,
         petId: data.petId,
         room,
@@ -51,7 +39,7 @@ export class PetEmitters {
       console.log(`🍔 [Handler] Feed pet request:`, data)
 
       // Emit event to PetService for processing
-      eventBus.emit('pet.feed', {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.FEED, {
         sessionId: client.sessionId,
         petId: data.petId,
         foodType: data.foodType,
@@ -66,7 +54,7 @@ export class PetEmitters {
       console.log(`🎾 [Handler] Play with pet request:`, data)
 
       // Emit event to PetService for processing
-      eventBus.emit('pet.play', {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.PLAY_WITH_PET, {
         sessionId: client.sessionId,
         petId: data.petId,
         room,
@@ -78,7 +66,7 @@ export class PetEmitters {
   static eatedFood(room: GameRoom) {
     return (client: Client, data: { hunger_level: number; pet_id: string; owner_id: string }) => {
       // Emit event to PetService for processing
-      eventBus.emit('pet.eated_food', {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.EATED_FOOD, {
         sessionId: client.sessionId,
         petId: data.pet_id,
         hungerLevel: data.hunger_level,
@@ -92,7 +80,7 @@ export class PetEmitters {
     console.log('cleanedPet', room)
     return (client: Client, data: { cleanliness_level: number; pet_id: string; owner_id: string }) => {
       // Emit event to PetService for processing
-      eventBus.emit('pet.cleaned', {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.CLEANED_PET, {
         sessionId: client.sessionId,
         petId: data.pet_id,
         cleanlinessLevel: data.cleanliness_level,
@@ -105,7 +93,7 @@ export class PetEmitters {
   static playedPet(room: GameRoom) {
     return (client: Client, data: { happiness_level: number; pet_id: string; owner_id: string }) => {
       // Emit event to PetService for processing
-      eventBus.emit('pet.played', {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.PLAYED_PET, {
         sessionId: client.sessionId,
         petId: data.pet_id,
         happinessLevel: data.happiness_level,
