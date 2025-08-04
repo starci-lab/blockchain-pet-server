@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { StoreItemType } from '../schemas/store-item.schema'
+import { ResponsePetTypeDto } from 'src/api/pet/dto/response-petType.dto'
 
 export class StatEffectResponseDto {
   @ApiProperty({
@@ -31,7 +32,7 @@ export class StatEffectResponseDto {
   duration?: number
 }
 
-export class ResponseStoreItemDto {
+export class ResponseItemDto {
   @ApiProperty({
     description: 'Store item ID',
     example: '60c72b2f9b1e8b001c8e4d3a'
@@ -78,14 +79,6 @@ export class ResponseStoreItemDto {
   image?: string
 
   @ApiProperty({
-    description: 'Associated pet type IDs',
-    example: ['60c72b2f9b1e8b001c8e4d3a'],
-    type: [String],
-    required: false
-  })
-  petTypeId?: string[]
-
-  @ApiProperty({
     description: 'Creation timestamp',
     example: '2023-01-01T00:00:00.000Z'
   })
@@ -96,4 +89,48 @@ export class ResponseStoreItemDto {
     example: '2023-01-01T00:00:00.000Z'
   })
   updatedAt: Date
+}
+
+export class ResponseStoreItemDto {
+  @ApiProperty({
+    type: [ResponseItemDto],
+    description: 'List of food items',
+    required: false
+  })
+  [StoreItemType.Food]?: ResponseItemDto[];
+
+  @ApiProperty({
+    type: [ResponseItemDto],
+    description: 'List of toy items',
+    required: false
+  })
+  [StoreItemType.Toy]?: ResponseItemDto[];
+
+  @ApiProperty({
+    type: [ResponseItemDto],
+    description: 'List of clean items',
+    required: false
+  })
+  [StoreItemType.Clean]?: ResponseItemDto[];
+
+  @ApiProperty({
+    type: [ResponseItemDto],
+    description: 'List of furniture items',
+    required: false
+  })
+  [StoreItemType.Furniture]?: ResponseItemDto[];
+
+  @ApiProperty({
+    type: [ResponseItemDto],
+    description: 'List of background items',
+    required: false
+  })
+  [StoreItemType.Background]?: ResponseItemDto[];
+
+  @ApiProperty({
+    type: [ResponsePetTypeDto],
+    description: 'List of pet items',
+    required: false
+  })
+  [StoreItemType.Pet]?: ResponsePetTypeDto[]
 }

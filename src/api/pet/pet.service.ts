@@ -5,6 +5,8 @@ import { CreatePetDto } from './dto/create-pet.dto'
 import { UpdatePetDto } from './dto/update-pet.dto'
 import { Pet, PetDocument, PetStatus } from './schemas/pet.schema'
 import { PetType, PetTypeDocument } from './schemas/pet-type.schema'
+import { plainToInstance } from 'class-transformer'
+import { ResponsePetTypeDto } from './dto/response-petType.dto'
 
 @Injectable()
 export class PetService {
@@ -25,6 +27,11 @@ export class PetService {
 
   async findAll() {
     return this.petModel.find().populate('type').populate('owner_id').exec()
+  }
+
+  async findAllPetTypes(): Promise<ResponsePetTypeDto[]> {
+    const response = await this.petTypeModel.find().lean().exec()
+    return plainToInstance(ResponsePetTypeDto, response)
   }
 
   async findActivePets() {

@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import { Document, Types } from 'mongoose'
-import { PetType } from 'src/api/pet/schemas/pet-type.schema'
+import { Document } from 'mongoose'
 
 type StatEffect = {
   hunger?: number
@@ -12,9 +11,10 @@ type StatEffect = {
 export enum StoreItemType {
   Food = 'food',
   Toy = 'toy',
-  Soap = 'soap',
+  Clean = 'clean',
   Furniture = 'furniture',
-  Background = 'background'
+  Background = 'background',
+  Pet = 'pet' // add pet type if needed
   // you can add more types if needed
 }
 
@@ -48,9 +48,6 @@ export class StoreItem {
 
   @Prop({ type: String, required: false })
   image: string
-
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'PetType' }] })
-  petTypeId: Types.ObjectId[] | PetType[]
 }
 
 export const StoreItemSchema = SchemaFactory.createForClass(StoreItem)

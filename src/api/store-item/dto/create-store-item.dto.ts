@@ -94,13 +94,4 @@ export class CreateStoreItemDto {
   @IsOptional()
   @IsString()
   image?: string
-
-  @ApiProperty({
-    description: 'ID of the associated pet type',
-    example: '60c72b2f9b1e8b001c8e4d3a',
-    required: false
-  })
-  @IsOptional()
-  @IsString()
-  petTypeId?: string
 }

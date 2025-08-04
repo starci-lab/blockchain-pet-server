@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/s
 import { StoreItemService } from './store-item.service'
 import { CreateStoreItemDto } from './dto/create-store-item.dto'
 import { UpdateStoreItemDto } from './dto/update-store-item.dto'
-import { ResponseStoreItemDto } from './dto/response-store-item.dto'
+import { ResponseItemDto, ResponseStoreItemDto } from './dto/response-store-item.dto'
 
 @ApiTags('Store Items')
 @Controller('store-item')
@@ -15,7 +15,7 @@ export class StoreItemController {
   @ApiResponse({
     status: 201,
     description: 'Store item has been successfully created.',
-    type: ResponseStoreItemDto
+    type: ResponseItemDto
   })
   @ApiResponse({
     status: 400,
@@ -31,11 +31,10 @@ export class StoreItemController {
   @ApiResponse({
     status: 200,
     description: 'Return all store items.',
-    type: [ResponseStoreItemDto],
-    isArray: true
+    type: [ResponseStoreItemDto]
   })
-  findAll() {
-    return this.storeItemService.findAll()
+  async findAll() {
+    return await this.storeItemService.findAll()
   }
 
   @Get(':id')
@@ -44,14 +43,14 @@ export class StoreItemController {
   @ApiResponse({
     status: 200,
     description: 'Return the store item.',
-    type: ResponseStoreItemDto
+    type: ResponseItemDto
   })
   @ApiResponse({
     status: 404,
     description: 'Store item not found.'
   })
-  findOne(@Param('id') id: string) {
-    return this.storeItemService.findOne(+id)
+  async findOne(@Param('id') id: string) {
+    return await this.storeItemService.findOne(id)
   }
 
   @Patch(':id')
