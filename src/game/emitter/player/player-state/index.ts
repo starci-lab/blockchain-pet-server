@@ -3,6 +3,7 @@ import { ResponseBuilder } from '../../../utils/ResponseBuilder'
 import { PetService } from 'src/game/handlers/PetService'
 import { InventoryService } from 'src/game/handlers/InventoryService'
 import { GameRoom } from 'src/game/rooms/game.room'
+import { MESSAGE_COLYSEUS } from 'src/game/constants/message-colyseus'
 
 // Player State Request Module
 export const requestPlayerState = (room: GameRoom) => {
@@ -24,7 +25,7 @@ export const requestPlayerState = (room: GameRoom) => {
 
       // Also send pets state for this player
       const playerPets = PetService.getPlayerPets(player)
-      client.send('pets-state-sync', ResponseBuilder.petsStateSync(playerPets))
+      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
       // Send inventory state
       const inventory = InventoryService.getInventorySummary(player)
