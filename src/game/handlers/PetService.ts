@@ -577,7 +577,8 @@ export class PetService {
       }
       const pet = room.state.pets.get(petId)
 
-      if (!player || !pet || pet.ownerId !== sessionId) {
+      // walletAddress is used as ownerId in Pet schema
+      if (!player || !pet || pet.ownerId !== player.walletAddress) {
         console.log(`❌ Eated food failed - invalid player/pet or ownership`)
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
@@ -676,7 +677,8 @@ export class PetService {
       }
       const pet = room.state.pets.get(petId)
 
-      if (!player || !pet || sessionId !== pet.ownerId) {
+      // walletAddress is used as ownerId in Pet schema
+      if (!player || !pet || pet.ownerId !== player.walletAddress) {
         console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`)
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
@@ -774,7 +776,8 @@ export class PetService {
       }
       const pet = room.state.pets.get(petId)
 
-      if (!player || !pet || sessionId !== pet.ownerId) {
+      // walletAddress is used as ownerId in Pet schema
+      if (!player || !pet || pet.ownerId !== player.walletAddress) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'played_pet',
