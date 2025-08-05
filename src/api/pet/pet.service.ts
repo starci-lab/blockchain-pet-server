@@ -112,7 +112,8 @@ export class PetService {
           time_natural: 10,
           max_income: 100,
           income_per_claim: 1,
-          max_income_per_claim: 15
+          max_income_per_claim: 15,
+          cost_nom: 50
         })
         await defaultPetType.save()
       }
