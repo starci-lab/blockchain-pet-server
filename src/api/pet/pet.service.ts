@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model, Types } from 'mongoose'
 import { CreatePetDto } from './dto/create-pet.dto'
@@ -21,8 +21,17 @@ export class PetService {
   }
 
   async createPetType(createPetDto: CreatePetDto) {
-    const createdPetType = new this.petTypeModel(createPetDto)
-    return createdPetType.save()
+    try {
+      const existingPetType = await this.petTypeModel.findOne({ name: { $regex: createPetDto.name, $options: 'i' } })
+      if (existingPetType) {
+        throw new BadRequestException(`Pet type with name ${createPetDto.name} already exists`)
+      }
+      const createdPetType = new this.petTypeModel(createPetDto)
+      return createdPetType.save()
+    } catch (error) {
+      console.error('Error creating pet type:', error)
+      throw error
+    }
   }
 
   async findAll() {

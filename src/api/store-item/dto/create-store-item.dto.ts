@@ -88,10 +88,10 @@ export class CreateStoreItemDto {
 
   @ApiProperty({
     description: 'Image URL of the store item',
-    example: 'https://example.com/dog_food.jpg',
+    example: 'https://your-bucket-name.s3.amazonaws.com/store-items/foods/cake.jpg',
     required: false
   })
   @IsOptional()
   @IsString()
-  image?: string
+  image_url?: string
 }

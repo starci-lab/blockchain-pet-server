@@ -85,7 +85,7 @@ export class ResponsePetTypeDto {
 
   @ApiProperty({
     description: 'Pet type image URL',
-    example: '/assets/images/Chog/chog_idle.png'
+    example: 'https://your-bucket-name.s3.amazonaws.com/pets/image.png'
   })
   image_url?: string
 
@@ -140,30 +140,4 @@ export class ResponsePetTypeDto {
     example: '2024-08-04T10:30:00.000Z'
   })
   updatedAt: Date
-}
-
-export class ResponsePetTypeListDto {
-  @ApiProperty({
-    description: 'List of pet types',
-    type: [ResponsePetTypeDto]
-  })
-  data: ResponsePetTypeDto[]
-
-  @ApiProperty({
-    description: 'Total count of pet types',
-    example: 5
-  })
-  total: number
-
-  @ApiProperty({
-    description: 'Current page',
-    example: 1
-  })
-  page?: number
-
-  @ApiProperty({
-    description: 'Items per page',
-    example: 10
-  })
-  limit?: number
 }

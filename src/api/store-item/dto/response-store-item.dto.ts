@@ -73,10 +73,10 @@ export class ResponseItemDto {
 
   @ApiProperty({
     description: 'Image URL of the store item',
-    example: 'https://example.com/dog_food.jpg',
+    example: 'https://your-bucket-name.s3.amazonaws.com/store-items/foods/cake.jpg',
     required: false
   })
-  image?: string
+  image_url?: string
 
   @ApiProperty({
     description: 'Creation timestamp',

@@ -47,7 +47,7 @@ export class StoreItem {
   effect: StatEffect
 
   @Prop({ type: String, required: false })
-  image: string
+  image_url: string
 }
 
 export const StoreItemSchema = SchemaFactory.createForClass(StoreItem)
