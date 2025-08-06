@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
+import { Document } from 'mongoose'
 
 type StatEffect = {
   hunger?: number
@@ -10,9 +11,10 @@ type StatEffect = {
 export enum StoreItemType {
   Food = 'food',
   Toy = 'toy',
-  Soap = 'soap',
+  Clean = 'clean',
   Furniture = 'furniture',
-  Decor = 'decor'
+  Background = 'background',
+  Pet = 'pet' // add pet type if needed
   // you can add more types if needed
 }
 
@@ -43,6 +45,9 @@ export class StoreItem {
 
   @Prop({ type: Object })
   effect: StatEffect
+
+  @Prop({ type: String, required: false })
+  image_url: string
 }
 
 export const StoreItemSchema = SchemaFactory.createForClass(StoreItem)

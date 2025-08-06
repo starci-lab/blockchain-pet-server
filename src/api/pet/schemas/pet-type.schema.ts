@@ -41,6 +41,9 @@ export class PetType {
     cleanliness: { min: number; max: number }
   }
 
+  @Prop({ type: Number, required: true, default: 100 })
+  cost_nom: number
+
   @Prop({ type: Number, required: true, default: 2 })
   time_natural: number
 

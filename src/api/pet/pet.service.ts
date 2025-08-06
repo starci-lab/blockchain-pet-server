@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model, Types } from 'mongoose'
 import { CreatePetDto } from './dto/create-pet.dto'
 import { UpdatePetDto } from './dto/update-pet.dto'
 import { Pet, PetDocument, PetStatus } from './schemas/pet.schema'
 import { PetType, PetTypeDocument } from './schemas/pet-type.schema'
+import { plainToInstance } from 'class-transformer'
+import { ResponsePetTypeDto } from './dto/response-petType.dto'
 
 @Injectable()
 export class PetService {
@@ -19,12 +21,26 @@ export class PetService {
   }
 
   async createPetType(createPetDto: CreatePetDto) {
-    const createdPetType = new this.petTypeModel(createPetDto)
-    return createdPetType.save()
+    try {
+      const existingPetType = await this.petTypeModel.findOne({ name: { $regex: createPetDto.name, $options: 'i' } })
+      if (existingPetType) {
+        throw new BadRequestException(`Pet type with name ${createPetDto.name} already exists`)
+      }
+      const createdPetType = new this.petTypeModel(createPetDto)
+      return createdPetType.save()
+    } catch (error) {
+      console.error('Error creating pet type:', error)
+      throw error
+    }
   }
 
   async findAll() {
     return this.petModel.find().populate('type').populate('owner_id').exec()
+  }
+
+  async findAllPetTypes(): Promise<ResponsePetTypeDto[]> {
+    const response = await this.petTypeModel.find().lean().exec()
+    return plainToInstance(ResponsePetTypeDto, response)
   }
 
   async findActivePets() {
@@ -96,7 +112,8 @@ export class PetService {
           time_natural: 10,
           max_income: 100,
           income_per_claim: 1,
-          max_income_per_claim: 15
+          max_income_per_claim: 15,
+          cost_nom: 50
         })
         await defaultPetType.save()
       }
