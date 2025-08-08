@@ -61,7 +61,17 @@ export class InventoryService {
       })
       return
     }
-
+    // TODO: check store item in database
+    // const dbService = DatabaseService.getInstance()
+    // const storeItemModel = dbService.getStoreItemModel()
+    // const storeItem = await storeItemModel.findOne({ name: itemName })
+    // if (!storeItem) {
+    //   client.send('purchase-response', {
+    //     success: false,
+    //     message: `Store item ${itemName} not found`
+    //   })
+    //   return
+    // }
     const categoryItems = STORE_ITEMS[itemType]
     if (!categoryItems || !categoryItems[itemName]) {
       client.send('purchase-response', {
