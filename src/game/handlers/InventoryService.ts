@@ -110,7 +110,7 @@ export class InventoryService {
         return
       }
 
-      //TODO: deduct tokens from player
+      //deduct tokens from player
       const tokenDeducted = await PlayerService.deductTokens(player, price)
       if (!tokenDeducted) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
@@ -121,9 +121,9 @@ export class InventoryService {
         return
       }
 
-      //TODO: add item to player inventory
+      // add item to player inventory
       this.addItem(player, itemType, itemId, storeItem.name, quantity)
-      //TODO: emit event to player
+      //emit event to player
       client.send(MESSAGE_COLYSEUS.ACTION.PURCHASE_RESPONSE, {
         success: true,
         action: 'purchase_item',
