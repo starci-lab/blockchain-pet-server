@@ -51,6 +51,8 @@ export class InventoryService {
 
   // Event handlers
   static handlePurchaseItem(eventData: InventoryEventData) {
+    // TODO: new body props
+    // {  sessionId, itemType, itemId, quantity, room, client } = InventoryEventData
     const { sessionId, itemType, itemName, quantity, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -61,7 +63,17 @@ export class InventoryService {
       })
       return
     }
-
+    // TODO: check store item in database
+    // const dbService = DatabaseService.getInstance()
+    // const storeItemModel = dbService.getStoreItemModel()
+    // const storeItem = await storeItemModel.findOne({ name: itemName })
+    // if (!storeItem) {
+    //   client.send('purchase-response', {
+    //     success: false,
+    //     message: `Store item ${itemName} not found`
+    //   })
+    //   return
+    // }
     const categoryItems = STORE_ITEMS[itemType]
     if (!categoryItems || !categoryItems[itemName]) {
       client.send('purchase-response', {
