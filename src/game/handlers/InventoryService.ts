@@ -51,6 +51,8 @@ export class InventoryService {
 
   // Event handlers
   static handlePurchaseItem(eventData: InventoryEventData) {
+    // TODO: new body props
+    // {  sessionId, itemType, itemId, quantity, room, client } = InventoryEventData
     const { sessionId, itemType, itemName, quantity, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
