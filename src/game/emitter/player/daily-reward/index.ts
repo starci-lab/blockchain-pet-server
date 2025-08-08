@@ -20,8 +20,8 @@ export const claimDailyReward = (room: GameRoom) => {
       const dailyRewards = {
         tokens: 50,
         items: [
-          { type: 'food', name: 'apple', quantity: 3 },
-          { type: 'food', name: 'fish', quantity: 1 }
+          { type: 'food', id: 'apple', name: 'apple', quantity: 3 },
+          { type: 'food', id: 'fish', name: 'fish', quantity: 1 }
         ]
       }
 
@@ -30,7 +30,7 @@ export const claimDailyReward = (room: GameRoom) => {
 
       // Add item rewards
       for (const item of dailyRewards.items) {
-        InventoryService.addItem(player, item.type, item.name, item.quantity)
+        InventoryService.addItem(player, item.type, item.id, item.name, item.quantity)
       }
 
       const newInventory = InventoryService.getInventorySummary(player)

@@ -49,7 +49,7 @@ export interface PetStats {
 export interface InventoryEventData {
   sessionId: string
   itemType: string
-  itemName: string
+  itemId: string
   quantity: number
   room: GameRoom
   client: Client
@@ -61,6 +61,7 @@ export interface InventorySummary {
   items: Array<{
     type: string
     name: string
+    id: string
     quantity: number
     totalPurchased: number
   }>

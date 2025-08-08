@@ -53,16 +53,16 @@ export class GameRoom extends Room<GameRoomState> {
 
   private setupMessageHandlers() {
     // Pet emitters (emit events to PetService)
-    this.onMessage(MESSAGE_COLYSEUS.PET.BUY, PetEmitters.buyPet(this))
-    this.onMessage(MESSAGE_COLYSEUS.PET.REMOVE, PetEmitters.removePet(this))
-    this.onMessage(MESSAGE_COLYSEUS.PET.FEED, PetEmitters.feedPet(this))
-    this.onMessage(MESSAGE_COLYSEUS.PET.PLAY_WITH, PetEmitters.playWithPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.BUY_PET, PetEmitters.buyPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.REMOVE_PET, PetEmitters.removePet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.FEED_PET, PetEmitters.feedPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.PLAY_WITH_PET, PetEmitters.playWithPet(this))
     this.onMessage(MESSAGE_COLYSEUS.PET.EATED_FOOD, PetEmitters.eatedFood(this))
-    this.onMessage(MESSAGE_COLYSEUS.PET.CLEANED, PetEmitters.cleanedPet(this))
-    this.onMessage(MESSAGE_COLYSEUS.PET.PLAYED, PetEmitters.playedPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.CLEANED_PET, PetEmitters.cleanedPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.PLAYED_PET, PetEmitters.playedPet(this))
 
     // Food emitters (emit events to InventoryService)
-    this.onMessage('buy_food', FoodEmitters.purchaseItem(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.BUY_FOOD, FoodEmitters.purchaseItem(this))
     this.onMessage('get_store_catalog', FoodEmitters.getStoreCatalog(this))
     this.onMessage('get_inventory', FoodEmitters.getInventory(this))
 

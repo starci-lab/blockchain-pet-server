@@ -4,6 +4,9 @@ import { PlayerService } from './PlayerService'
 import { StoreItems, InventoryEventData, InventorySummary } from '../types/GameTypes'
 import { Client } from 'colyseus'
 import { GameRoom } from '../rooms/game.room'
+import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
+import { DatabaseService } from '../services/DatabaseService'
+import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
 
 interface CatalogEventData {
   client: Client
@@ -38,7 +41,9 @@ export class InventoryService {
     console.log('🎧 Initializing InventoryService event listeners...')
 
     // Listen for purchase events
-    eventBus.on('inventory.purchase', this.handlePurchaseItem.bind(this))
+    eventBus.on(EMITTER_EVENT_BUS.PET.BUY_FOOD, (eventData: InventoryEventData) => {
+      this.handlePurchaseItem(eventData).catch(console.error)
+    })
 
     // Listen for catalog requests
     eventBus.on('inventory.get_catalog', this.handleGetCatalog.bind(this))
@@ -49,58 +54,85 @@ export class InventoryService {
     console.log('✅ InventoryService event listeners initialized')
   }
 
-  // Event handlers
-  static handlePurchaseItem(eventData: InventoryEventData) {
-    // TODO: new body props
-    // {  sessionId, itemType, itemId, quantity, room, client } = InventoryEventData
-    const { sessionId, itemType, itemName, quantity, room, client } = eventData
-    const player = room.state.players.get(sessionId)
+  static async getStoreItem(itemId: string) {
+    const dbService = DatabaseService.getInstance()
+    const storeItemModel = dbService.getStoreItemModel()
+    const storeItem = await storeItemModel.findOne({ id: itemId })
+    return storeItem
+  }
 
-    if (!player) {
-      client.send('purchase-response', {
-        success: false,
-        message: 'Player not found'
-      })
-      return
-    }
-    // TODO: check store item in database
-    // const dbService = DatabaseService.getInstance()
-    // const storeItemModel = dbService.getStoreItemModel()
-    // const storeItem = await storeItemModel.findOne({ name: itemName })
-    // if (!storeItem) {
-    //   client.send('purchase-response', {
-    //     success: false,
-    //     message: `Store item ${itemName} not found`
-    //   })
-    //   return
-    // }
-    const categoryItems = STORE_ITEMS[itemType]
-    if (!categoryItems || !categoryItems[itemName]) {
-      client.send('purchase-response', {
-        success: false,
-        message: `Item ${itemName} not found in ${itemType} category`
-      })
-      return
-    }
+  //TODO: NEW Event handlers
+  static async handlePurchaseItem(eventData: InventoryEventData) {
+    try {
+      const { sessionId, itemType, itemId, quantity, room, client } = eventData
 
-    const itemConfig = categoryItems[itemName]
-    this.purchaseItem(player, itemType, itemName, quantity, itemConfig.price)
-      .then((result) => {
-        const inventorySummary = this.getInventorySummary(player)
-        client.send('purchase-response', {
-          success: result.success,
-          message: result.message,
-          currentTokens: result.currentTokens,
-          inventory: inventorySummary
-        })
-      })
-      .catch((error) => {
-        console.error('❌ Error purchasing item:', error)
+      if (!itemId) {
         client.send('purchase-response', {
           success: false,
-          message: 'Failed to purchase item'
+          message: 'Item ID is required'
         })
+        return
+      }
+
+      const player = room.state.players.get(sessionId)
+
+      if (!player) {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+          success: false,
+          action: 'purchase_item',
+          message: 'Player not found'
+        })
+        return
+      }
+
+      //check store item in database
+      const storeItem = await this.getStoreItem(itemId)
+
+      if (!storeItem) {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+          success: false,
+          action: 'purchase_item',
+          message: `Store item ${itemId} not found`
+        })
+        return
+      }
+
+      const price = storeItem.cost_nom * quantity
+
+      //check if player has enough tokens
+      const hasEnoughTokens = await PlayerService.hasEnoughTokens(player, price)
+      if (!hasEnoughTokens) {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+          success: false,
+          action: 'purchase_item',
+          message: `Not enough tokens`
+        })
+        return
+      }
+
+      //deduct tokens from player
+      const tokenDeducted = await PlayerService.deductTokens(player, price)
+      if (!tokenDeducted) {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+          success: false,
+          action: 'purchase_item',
+          message: `Failed to deduct tokens`
+        })
+        return
+      }
+
+      // add item to player inventory
+      this.addItem(player, itemType, itemId, storeItem.name, quantity)
+      //emit event to player
+      client.send(MESSAGE_COLYSEUS.ACTION.PURCHASE_RESPONSE, {
+        success: true,
+        action: 'purchase_item',
+        message: `Purchased ${quantity}x ${itemId}`
       })
+    } catch (error) {
+      console.log('Error purchasing item:', error)
+      throw error
+    }
   }
 
   static handleGetCatalog(eventData: CatalogEventData) {
@@ -136,16 +168,18 @@ export class InventoryService {
 
     console.log(`📦 [Service] Sent inventory for ${player.name}`)
   }
+
   // Add item to player inventory
-  static addItem(player: Player, itemType: string, itemName: string, quantity: number): void {
-    const itemKey = `${itemType}_${itemName}`
+  static addItem(player: Player, itemType: string, itemId: string, itemName: string, quantity: number): void {
+    const itemKey = `${itemType}_${itemId}`
 
     let inventoryItem = player.inventory.get(itemKey)
     if (!inventoryItem) {
       inventoryItem = new InventoryItem()
       inventoryItem.itemType = itemType
-      inventoryItem.itemName = itemName
+      inventoryItem.itemId = itemId
       inventoryItem.quantity = 0
+      inventoryItem.itemName = itemName
       inventoryItem.totalPurchased = 0
       player.inventory.set(itemKey, inventoryItem)
     }
@@ -153,7 +187,7 @@ export class InventoryService {
     inventoryItem.quantity += quantity
     inventoryItem.totalPurchased += quantity
 
-    console.log(`📦 Added ${quantity}x ${itemName} to ${player.name}'s inventory. Total: ${inventoryItem.quantity}`)
+    console.log(`📦 Added ${quantity}x ${itemId} to ${player.name}'s inventory. Total: ${inventoryItem.quantity}`)
   }
 
   // Use item from inventory (decrease quantity)
@@ -216,6 +250,7 @@ export class InventoryService {
 
       summary.items.push({
         type: item.itemType,
+        id: item.itemId,
         name: item.itemName,
         quantity: item.quantity,
         totalPurchased: item.totalPurchased
@@ -223,48 +258,5 @@ export class InventoryService {
     })
 
     return summary
-  }
-
-  // Purchase item (add to inventory and deduct tokens)
-  static async purchaseItem(
-    player: Player,
-    itemType: string,
-    itemName: string,
-    quantity: number,
-    pricePerItem: number
-  ): Promise<{ success: boolean; message: string; currentTokens: number }> {
-    const totalCost = quantity * pricePerItem
-
-    if (player.tokens < totalCost) {
-      return {
-        success: false,
-        message: `Not enough tokens. Need ${totalCost}, have ${player.tokens}`,
-        currentTokens: player.tokens
-      }
-    }
-
-    // Deduct tokens using PlayerService (this will sync to database)
-    const tokenDeducted = await PlayerService.deductTokens(player, totalCost)
-
-    if (!tokenDeducted) {
-      return {
-        success: false,
-        message: `Failed to deduct tokens`,
-        currentTokens: player.tokens
-      }
-    }
-
-    // Add item to inventory
-    this.addItem(player, itemType, itemName, quantity)
-
-    console.log(
-      `💰 ${player.name} purchased ${quantity}x ${itemName} for ${totalCost} tokens. Remaining tokens: ${player.tokens}`
-    )
-
-    return {
-      success: true,
-      message: `Purchased ${quantity}x ${itemName}`,
-      currentTokens: player.tokens
-    }
   }
 }
