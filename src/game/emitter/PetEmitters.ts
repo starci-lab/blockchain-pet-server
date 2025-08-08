@@ -10,7 +10,7 @@ export class PetEmitters {
       console.log(`🐕 [Handler] Create pet request:`, data)
 
       // Emit event to PetService for processing
-      eventBus.emit(EMITTER_EVENT_BUS.PET.BUY, {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.BUY_PET, {
         sessionId: client.sessionId,
         petType: data.petType,
         room,
@@ -25,7 +25,7 @@ export class PetEmitters {
       console.log(`🗑️ [Handler] Remove pet request:`, data)
 
       // Emit event to PetService for processing
-      eventBus.emit(EMITTER_EVENT_BUS.PET.REMOVE, {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.REMOVE_PET, {
         sessionId: client.sessionId,
         petId: data.petId,
         room,
@@ -39,7 +39,7 @@ export class PetEmitters {
       console.log(`🍔 [Handler] Feed pet request:`, data)
 
       // Emit event to PetService for processing
-      eventBus.emit(EMITTER_EVENT_BUS.PET.FEED, {
+      eventBus.emit(EMITTER_EVENT_BUS.PET.FEED_PET, {
         sessionId: client.sessionId,
         petId: data.petId,
         foodType: data.foodType,

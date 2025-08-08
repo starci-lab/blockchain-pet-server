@@ -18,15 +18,15 @@ export class PetService {
     console.log('🎧 Initializing PetService event listeners...')
 
     // Listen for pet creation events
-    eventBus.on(EMITTER_EVENT_BUS.PET.BUY, (eventData: PetEventData) => {
+    eventBus.on(EMITTER_EVENT_BUS.PET.BUY_PET, (eventData: PetEventData) => {
       this.handleBuyPet(eventData).catch(console.error)
     })
 
     // Listen for pet removal events
-    eventBus.on(EMITTER_EVENT_BUS.PET.REMOVE, this.handleRemovePet.bind(this))
+    eventBus.on(EMITTER_EVENT_BUS.PET.REMOVE_PET, this.handleRemovePet.bind(this))
 
     // Listen for pet feeding events
-    eventBus.on(EMITTER_EVENT_BUS.PET.FEED, this.handleFeedPet.bind(this))
+    eventBus.on(EMITTER_EVENT_BUS.PET.FEED_PET, this.handleFeedPet.bind(this))
 
     // Listen for pet playing events
     eventBus.on(EMITTER_EVENT_BUS.PET.PLAY_WITH_PET, this.handlePlayWithPet.bind(this))
@@ -115,8 +115,9 @@ export class PetService {
 
     // Check if petType is valid
     if (!petType) {
-      client.send(MESSAGE_COLYSEUS.PET.BUY_PET_RESPONSE, {
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
         success: false,
+        action: 'buy_pet',
         message: 'Pet type not found'
       })
       return
@@ -126,8 +127,9 @@ export class PetService {
       // Logic buy pet
       const PET_PRICE = 50
       if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-        client.send(MESSAGE_COLYSEUS.PET.BUY_PET_RESPONSE, {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
+          action: 'buy_pet',
           message: 'Not enough tokens',
           currentTokens: player.tokens
         })
@@ -177,8 +179,9 @@ export class PetService {
         player.totalPetsOwned = petsFromDb.length
 
         // Gửi response về client
-        client.send(MESSAGE_COLYSEUS.PET.BUY_PET_RESPONSE, {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: true,
+          action: 'buy_pet',
           message: 'Mua pet thành công!',
           currentTokens: player.tokens,
           pets: petsFromDb
@@ -192,8 +195,9 @@ export class PetService {
         console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
       } catch (err) {
         console.error('❌ Lỗi khi mua pet:', err)
-        client.send(MESSAGE_COLYSEUS.PET.BUY_PET_RESPONSE, {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
+          action: 'buy_pet',
           message: 'Lỗi khi mua pet',
           currentTokens: player.tokens
         })
@@ -273,7 +277,7 @@ export class PetService {
     console.log('🔄 Sending pets-state-sync after remove pet...')
     const playerPets = this.getPlayerPets(player)
     console.log(`📤 Player ${player.name} has ${playerPets.length} pets remaining`)
-    client.send(MESSAGE_COLYSEUS.PET.REMOVE_PET_RESPONSE, ResponseBuilder.petsStateSync(playerPets))
+    client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, ResponseBuilder.petsStateSync(playerPets))
 
     console.log(`✅ Pet ${petId} removed for ${player.name}. Remaining pets: ${player.totalPetsOwned}`)
   }

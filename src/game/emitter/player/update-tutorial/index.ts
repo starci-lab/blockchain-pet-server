@@ -7,6 +7,7 @@ import { Player } from 'src/game/schemas/game-room.schema'
 // Define interfaces for type safety
 interface TutorialItem {
   type: string
+  id: string
   name: string
   quantity: number
 }
@@ -50,15 +51,15 @@ export const updateTutorial = (room: GameRoom) => {
         const tutorialRewards: TutorialRewards = {
           'first-pet': {
             tokens: 10,
-            items: [{ type: 'food', name: 'apple', quantity: 5 }]
+            items: [{ type: 'food', id: 'apple', name: 'apple', quantity: 5 }]
           },
           'feed-pet': {
             tokens: 5,
-            items: [{ type: 'food', name: 'fish', quantity: 2 }]
+            items: [{ type: 'food', id: 'fish', name: 'fish', quantity: 2 }]
           },
           'buy-item': {
             tokens: 15,
-            items: [{ type: 'toys', name: 'ball', quantity: 1 }]
+            items: [{ type: 'toys', id: 'ball', name: 'ball', quantity: 1 }]
           }
         }
 
@@ -72,7 +73,7 @@ export const updateTutorial = (room: GameRoom) => {
           // Give item rewards
           if (reward.items) {
             for (const item of reward.items) {
-              InventoryService.addItem(player, item.type, item.name, item.quantity)
+              InventoryService.addItem(player, item.type, item.id, item.name, item.quantity)
             }
           }
 

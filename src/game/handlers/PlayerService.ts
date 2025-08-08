@@ -341,7 +341,7 @@ export class PlayerService {
     await this.addTokens(player, rewardTokens)
 
     // Add food items
-    InventoryService.addItem(player, 'food', 'apple', rewardFood)
+    InventoryService.addItem(player, 'food', 'apple', 'apple', rewardFood)
 
     client.send('daily-reward-response', {
       success: true,
@@ -831,6 +831,25 @@ export class PlayerService {
       console.log(`✅ Player data saved for ${player.name} (wallet: ${walletAddress}, tokens: ${player.tokens})`)
     } catch (error) {
       console.error(`❌ Failed to save player data for ${player.name}:`, error)
+    }
+  }
+
+  static async hasEnoughTokens(player: Player, amount: number): Promise<boolean> {
+    try {
+      const dbService = DatabaseService.getInstance()
+
+      const userModel = dbService.getUserModel()
+      const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
+
+      if (!user) {
+        console.warn(`User not found in DB for wallet ${player.walletAddress}, skipping token check`)
+        return false
+      }
+
+      return user.token_nom >= amount
+    } catch (error) {
+      console.error(`Failed to check if player has enough tokens:`, error)
+      return false
     }
   }
 }
