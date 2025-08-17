@@ -55,10 +55,15 @@ export class InventoryService {
   }
 
   static async getStoreItem(itemId: string) {
-    const dbService = DatabaseService.getInstance()
-    const storeItemModel = dbService.getStoreItemModel()
-    const storeItem = await storeItemModel.findOne({ id: itemId })
-    return storeItem
+    try {
+      const dbService = DatabaseService.getInstance()
+      const storeItemModel = dbService.getStoreItemModel()
+      const storeItem = await storeItemModel.findOne({ _id: itemId })
+      return storeItem
+    } catch (error) {
+      console.log('Error getting store item:', error)
+      throw error
+    }
   }
 
   //TODO: NEW Event handlers
