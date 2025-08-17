@@ -4,12 +4,13 @@ import { GameRoom } from '../rooms/game.room'
 import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
 export class FoodEmitters {
   static purchaseItem(room: GameRoom) {
-    return (client: Client, data: { itemType: string; itemName: string; quantity: number }) => {
+    return (client: Client, data: { itemType: string; itemName: string; quantity: number; itemId: string }) => {
       console.log(`🛒 [Handler] Purchase item request:`, data)
 
       // Emit event to InventoryService for processing
       eventBus.emit(EMITTER_EVENT_BUS.PET.BUY_FOOD, {
         sessionId: client.sessionId,
+        itemId: data.itemId,
         itemType: data.itemType,
         itemName: data.itemName,
         quantity: data.quantity,
