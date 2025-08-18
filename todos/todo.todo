@@ -1,0 +1,4 @@
+Todo:
+  ☐ Re-check and rename pet growth states for better clarity
+  ☐ Add new fields to support realtime display of pet growth state and token earnings
+  ☐ Handle state for pet poop position

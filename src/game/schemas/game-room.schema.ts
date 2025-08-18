@@ -21,12 +21,42 @@ export class Pet extends Schema {
     super()
     this.lastUpdated = Date.now()
   }
+
+  // TODO: read this instruction and implement it
+  //  @type("string") id: string = "";
+  // @type("string") ownerId: string = "";
+  // @type("string") petType: string = "chog"; // loại pet
+
+  // // --- Core stats ---
+  // @type("number") hunger: number = 100;        // 0-100
+  // @type("number") happiness: number = 100;     // 0-100
+  // @type("number") cleanliness: number = 100;   // 0-100
+  // @type("number") lastUpdated: number = Date.now(); // lần cuối decay
+
+  // @type("string") lastUpdateHunger: string = "";
+  // @type("string") lastUpdateHappiness: string = "";
+  // @type("string") lastUpdateCleanliness: string = "";
+
+  // // --- Growth tracking ---
+  // @type("boolean") isAdult: boolean = false;
+  // @type("number") birthTime: number = Date.now();    // when pet is created
+  // @type("number") growthDuration: number = 3600;     // time to grow up
+
+  // // --- Income cycle ---
+  // @type("number") incomeCycleTime: number = 600;     // earn cycle (seconds)
+  // @type("number") incomePerCycle: number = 10;       // max token / cycle
+  // @type("string") lastClaim: string = "";            // last claim
+
+  // constructor() {
+  //   super();
+  //   this.lastUpdated = Date.now();
+  // }
 }
 
 // Simple inventory item tracking
 export class InventoryItem extends Schema {
   @type('string') itemType: string = '' // 'food', 'toy', 'soap', etc.
-  @type('string') itemId: string = '' 
+  @type('string') itemId: string = ''
   @type('string') itemName: string = '' // 'hamburger', 'ball', 'shampoo'
   @type('number') quantity: number = 0
   @type('number') totalPurchased: number = 0 // Track total ever bought
