@@ -11,6 +11,7 @@ import { Types } from 'mongoose'
 import { PetStats as GamePetStats } from '../types/GameTypes'
 import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
 import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
+import { PetType } from 'src/api/pet/schemas/pet-type.schema'
 
 export class PetService {
   // Initialize event listeners
@@ -52,12 +53,9 @@ export class PetService {
     console.log('✅ PetService event listeners initialized')
   }
 
-  /**
-   * Fetch all pets of a user from the database by wallet address
-   * @param walletAddress string
-   * @returns Promise<Pet[]>
-   */
+  // TODO: fetch pets from database
   static async fetchPetsFromDatabase(walletAddress: string): Promise<Pet[]> {
+    console.log(12312348991371)
     if (!walletAddress) return []
     try {
       const dbService = DatabaseService.getInstance()
@@ -82,8 +80,8 @@ export class PetService {
         pet.lastUpdateHunger = dbPet.stats?.last_update_hunger?.toISOString() ?? ''
         pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() ?? ''
         pet.isAdult = dbPet.isAdult || false
-        pet.tokenIncome = dbPet.token_income || 0
-        pet.totalIncome = dbPet.total_income || 0
+        pet.incomeCycleTime = dbPet.token_income || 0
+        pet.incomePerCycle = (dbPet.type as PetType).max_income_per_claim || 0
         pet.lastClaim = dbPet.last_claim?.toISOString() ?? ''
         pet.lastUpdated = Date.now()
         return pet
@@ -880,10 +878,9 @@ export class PetService {
     }
   }
 
-  // Sync pets from database to player state
+  // TODO: sync pets from database to player state
   static syncPlayerPetsFromDatabase(player: Player, userPets: DBPet[]): void {
     console.log(`🔄 [Service] Syncing ${userPets.length} pets from database for ${player.name}`)
-
     // Initialize player pets collection if not exists
     if (!player.pets) {
       player.pets = new MapSchema<Pet>()
@@ -908,8 +905,8 @@ export class PetService {
       pet.lastUpdateHunger = dbPet.stats?.last_update_hunger?.toISOString() || now
       pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() || now
       pet.isAdult = dbPet.isAdult || false
-      pet.tokenIncome = dbPet.token_income || 0
-      pet.totalIncome = dbPet.total_income || 0
+      // pet.tokenIncome = dbPet.token_income || 0
+      // pet.totalIncome = dbPet.total_income || 0
       pet.lastClaim = dbPet.last_claim?.toISOString() || now
 
       player.pets.set(pet.id, pet)

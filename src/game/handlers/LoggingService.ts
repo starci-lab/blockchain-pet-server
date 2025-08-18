@@ -42,8 +42,8 @@ export class LoggingService {
         lastUpdateHunger: pet.lastUpdateHunger,
         lastUpdateCleanliness: pet.lastUpdateCleanliness,
         isAdult: pet.isAdult,
-        tokenIncome: pet.tokenIncome,
-        totalIncome: pet.totalIncome,
+        tokenIncome: pet.incomePerCycle,
+        totalIncome: pet.incomePerCycle,
         lastClaim: pet.lastClaim
       }))
     })
