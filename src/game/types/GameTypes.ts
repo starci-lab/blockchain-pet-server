@@ -80,9 +80,43 @@ export interface PetEventData {
   foodType?: string
 }
 
+export interface PetType {
+  _id: Types.ObjectId
+  default_stats: {
+    hunger: number
+    last_update_hunger: Date
+    happiness: number
+    last_update_happiness: Date
+    cleanliness: number
+    last_update_cleanliness: Date
+  }
+  img_url: string
+  description: string
+  stat_decay: {
+    hunger: {
+      min: number
+      max: number
+    }
+    happiness: {
+      min: number
+      max: number
+    }
+    cleanliness: {
+      min: number
+      max: number
+    }
+  }
+  cost_nom: number
+  name: string
+  time_natural: number
+  max_income: number
+  income_per_claim: number
+  max_income_per_claim: number
+}
+
 export interface DBPet {
   _id: Types.ObjectId
-  type: { name: string }
+  type: PetType
   stats: {
     hunger: number
     happiness: number
@@ -96,4 +130,6 @@ export interface DBPet {
   total_income: number
   last_claim: Date
   owner_id: Types.ObjectId
+  createdAt: Date
+  updatedAt: Date
 }

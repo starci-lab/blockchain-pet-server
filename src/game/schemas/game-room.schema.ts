@@ -18,7 +18,7 @@ export class Pet extends Schema {
 
   // Growth tracking
   @type('boolean') isAdult: boolean = false
-  @type('number') birthTime: number = Date.now() // when pet is created
+  @type('string') birthTime: string = '' // when pet is created
   @type('number') growthDuration: number = 3600 // time to grow up
 
   // Income cycle

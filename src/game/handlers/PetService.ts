@@ -55,7 +55,6 @@ export class PetService {
 
   // TODO: fetch pets from database
   static async fetchPetsFromDatabase(walletAddress: string): Promise<Pet[]> {
-    console.log(12312348991371)
     if (!walletAddress) return []
     try {
       const dbService = DatabaseService.getInstance()
@@ -66,22 +65,24 @@ export class PetService {
       const user = await userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await petModel.find({ owner_id: user._id }).populate('type').exec()
+      const dbPets = await petModel.find({ owner_id: user._id }).populate<{ type: PetType }>('type').exec()
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
         pet.id = (dbPet._id as Types.ObjectId).toString()
         pet.ownerId = walletAddress
-        pet.petType = (dbPet as DBPet).type?.name || 'chog'
+        pet.petType = dbPet.type?.name || 'chog'
         pet.hunger = dbPet.stats?.hunger ?? 50
         pet.happiness = dbPet.stats?.happiness ?? 50
         pet.cleanliness = dbPet.stats?.cleanliness ?? 50
         pet.lastUpdateHappiness = dbPet.stats?.last_update_happiness?.toISOString() ?? ''
         pet.lastUpdateHunger = dbPet.stats?.last_update_hunger?.toISOString() ?? ''
         pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() ?? ''
-        pet.isAdult = dbPet.isAdult || false
+        pet.isAdult = dbPet.isAdult ?? false
+        pet.birthTime = dbPet.createdAt?.toISOString() ?? ''
+        pet.growthDuration = dbPet.type.time_natural || 0
         pet.incomeCycleTime = dbPet.token_income || 0
-        pet.incomePerCycle = (dbPet.type as PetType).max_income_per_claim || 0
+        pet.incomePerCycle = dbPet.type.max_income_per_claim || 0
         pet.lastClaim = dbPet.last_claim?.toISOString() ?? ''
         pet.lastUpdated = Date.now()
         return pet
@@ -897,18 +898,21 @@ export class PetService {
       pet.id = dbPet._id.toString()
       pet.ownerId = player.sessionId
       pet.petType = dbPet.type?.name || 'chog'
-      pet.hunger = dbPet.stats?.hunger || 50
-      pet.happiness = dbPet.stats?.happiness || 50
-      pet.cleanliness = dbPet.stats?.cleanliness || 50
-      pet.lastUpdated = Date.now()
-      pet.lastUpdateHappiness = dbPet.stats?.last_update_happiness?.toISOString() || now
-      pet.lastUpdateHunger = dbPet.stats?.last_update_hunger?.toISOString() || now
-      pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() || now
-      pet.isAdult = dbPet.isAdult || false
-      // pet.tokenIncome = dbPet.token_income || 0
-      // pet.totalIncome = dbPet.total_income || 0
+      pet.hunger = dbPet.stats?.hunger ?? 50
+      pet.happiness = dbPet.stats?.happiness ?? 50
+      pet.cleanliness = dbPet.stats?.cleanliness ?? 50
+      pet.lastUpdateHappiness = dbPet.stats?.last_update_happiness?.toISOString() ?? ''
+      pet.lastUpdateHunger = dbPet.stats?.last_update_hunger?.toISOString() ?? ''
+      pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() ?? ''
+      pet.isAdult = dbPet.isAdult ?? false
+      pet.birthTime = dbPet.createdAt?.toISOString() ?? ''
+      pet.growthDuration = dbPet.type.time_natural || 0
+      pet.incomeCycleTime = dbPet.token_income || 0
+      pet.incomePerCycle = dbPet.type.max_income_per_claim || 0
+      pet.lastClaim = dbPet.last_claim?.toISOString() ?? ''
       pet.lastClaim = dbPet.last_claim?.toISOString() || now
 
+      pet.lastUpdated = Date.now()
       player.pets.set(pet.id, pet)
     })
 

@@ -7,7 +7,11 @@ export enum PetStatus {
   Exhausted = 'exhausted'
 }
 
-export type PetDocument = Pet & Document
+export type PetDocument = Pet &
+  Document & {
+    createdAt: Date
+    updatedAt: Date
+  }
 
 @Schema({ timestamps: true })
 export class Pet {
