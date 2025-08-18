@@ -80,6 +80,15 @@ export interface PetEventData {
   foodType?: string
 }
 
+export interface PoopEvenData {
+  sessionId: string
+  petId?: string
+  room: GameRoom
+  client: Client
+  positionX: number
+  positionY: number
+}
+
 export interface PetType {
   _id: Types.ObjectId
   default_stats: {

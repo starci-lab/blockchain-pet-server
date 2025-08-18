@@ -6,12 +6,13 @@ import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { InventoryService } from './InventoryService'
 import { MapSchema } from '@colyseus/schema'
 import { PetStatus } from 'src/api/pet/schemas/pet.schema'
-import { PetEventData, DBPet } from '../types/GameTypes'
+import { PetEventData, DBPet, PoopEvenData } from '../types/GameTypes'
 import { Types } from 'mongoose'
 import { PetStats as GamePetStats } from '../types/GameTypes'
 import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
 import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
 import { PetType } from 'src/api/pet/schemas/pet-type.schema'
+import { Poop } from 'src/api/pet/schemas/poop.schema'
 
 export class PetService {
   // Initialize event listeners
@@ -48,6 +49,11 @@ export class PetService {
     // Listen for pet played events - wrapped to handle async
     eventBus.on(EMITTER_EVENT_BUS.PET.PLAYED_PET, (eventData: PetEventData) => {
       this.handlePlayedPet(eventData).catch(console.error)
+    })
+
+    // Listen for pet create poop events
+    eventBus.on(EMITTER_EVENT_BUS.PET.CREATE_POOP, (eventData: PoopEvenData) => {
+      this.handleCreatePoop(eventData).catch(console.error)
     })
 
     console.log('✅ PetService event listeners initialized')
@@ -865,6 +871,63 @@ export class PetService {
       })
     }
     return
+  }
+
+  // TODO: handle create poop
+  static async handleCreatePoop(poopData: PoopEvenData) {
+    const { sessionId, petId, positionX, positionY, room, client } = poopData
+    try {
+      const player = room.state.players.get(sessionId)
+      if (!player || !petId) {
+        console.log(`❌ Create poop failed - invalid player/pet`)
+        return
+      }
+
+      const pet = room.state.pets.get(petId)
+
+      if (!player || !pet || pet.ownerId !== player.walletAddress) {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+          success: false,
+          action: 'played_pet',
+          message: 'Cannot play with pet'
+        })
+        return
+      }
+
+      // TODO: Create poop in the room
+      const dbService = DatabaseService.getInstance()
+      const poopdModel = dbService.getPoopModel()
+
+      const newPoop = new Poop()
+      const petIdObject = new Types.ObjectId(petId)
+      newPoop.pet_id = petIdObject
+      newPoop.position_x = +positionX
+      newPoop.position_y = +positionY
+
+      // Save to DB
+      const createdPoop = await poopdModel.create(newPoop)
+
+      if (!createdPoop) {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+          success: false,
+          action: 'create_poop',
+          message: 'Cannot create poop'
+        })
+      } else {
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+          success: true,
+          action: 'create_poop',
+          message: 'Created poop'
+        })
+      }
+    } catch (error) {
+      console.error('❌ Create poop error:', error)
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+        success: false,
+        action: 'create_poop',
+        message: 'Cannot create poop'
+      })
+    }
   }
 
   // Get pet stats summary
