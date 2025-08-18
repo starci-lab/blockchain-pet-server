@@ -1,5 +1,5 @@
 import { DatabaseService } from '../services/DatabaseService'
-import { Pet, Player } from '../schemas/game-room.schema'
+import { GamePoop, Pet, Player } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { ResponseBuilder } from '../utils/ResponseBuilder'
@@ -174,7 +174,6 @@ export class PetService {
 
         // Lấy lại danh sách pet mới nhất từ DB
         const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress)
-        console.log(1231313, petsFromDb)
         // Cập nhật state cho player
         if (!player.pets) player.pets = new MapSchema<Pet>()
         else player.pets.clear()
@@ -913,13 +912,23 @@ export class PetService {
           action: 'create_poop',
           message: 'Cannot create poop'
         })
-      } else {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: true,
-          action: 'create_poop',
-          message: 'Created poop'
-        })
+        return
       }
+
+      // handle update pet state
+      const gamePoop = new GamePoop()
+      gamePoop.id = createdPoop._id as string
+      gamePoop.petId = petId
+      gamePoop.positionX = +positionX
+      gamePoop.positionY = +positionY
+
+      pet.poops.push(gamePoop)
+
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+        success: true,
+        action: 'create_poop',
+        message: 'Created poop'
+      })
     } catch (error) {
       console.error('❌ Create poop error:', error)
       client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
