@@ -102,4 +102,20 @@ export class PetEmitters {
       })
     }
   }
+
+  static createPoop(room: GameRoom) {
+    return (client: Client, data: { petId: string; positionX: number; positionY: number }) => {
+      console.log(`💩 [Handler] Create poop request:`, data)
+
+      // Emit event to PetService for processing
+      eventBus.emit(EMITTER_EVENT_BUS.PET.CREATE_POOP, {
+        sessionId: client.sessionId,
+        petId: data.petId,
+        positionX: data.positionX,
+        positionY: data.positionY,
+        room,
+        client
+      })
+    }
+  }
 }

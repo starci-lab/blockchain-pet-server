@@ -5,6 +5,7 @@ import { User, UserDocument } from 'src/api/user/schemas/user.schema'
 import { Pet, PetDocument } from 'src/api/pet/schemas/pet.schema'
 import { PetType, PetTypeDocument } from 'src/api/pet/schemas/pet-type.schema'
 import { StoreItem, StoreItemDocument } from 'src/api/store-item/schemas/store-item.schema'
+import { Poop, PoopDocument } from 'src/api/pet/schemas/poop.schema'
 
 @Injectable()
 export class DatabaseService {
@@ -14,7 +15,8 @@ export class DatabaseService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Pet.name) private petModel: Model<PetDocument>,
     @InjectModel(PetType.name) private petTypeModel: Model<PetTypeDocument>,
-    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>
+    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>,
+    @InjectModel(Poop.name) private poopModel: Model<PoopDocument>
   ) {
     DatabaseService.instance = this
   }
@@ -37,5 +39,9 @@ export class DatabaseService {
 
   getStoreItemModel(): Model<StoreItemDocument> {
     return this.storeItemModel
+  }
+
+  getPoopModel(): Model<PoopDocument> {
+    return this.poopModel
   }
 }

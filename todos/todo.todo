@@ -1,4 +1,4 @@
 Todo:
-  ☐ Re-check and rename pet growth states for better clarity
-  ☐ Add new fields to support realtime display of pet growth state and token earnings
-  ☐ Handle state for pet poop position
+  ✔ Re-check and rename pet growth states for better clarity @started(25-08-18 14:58) @done(25-08-18 16:37) @lasted(1h39m27s)
+  ✔ Add new fields to support realtime display of pet growth state and token earnings @started(25-08-19 00:33) @done(25-08-19 01:00) @lasted(27m24s)
+  ✔ Handle state for pet poop position @started(25-08-18 16:45) @done(25-08-19 01:00) @lasted(8h15m26s)

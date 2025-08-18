@@ -8,7 +8,8 @@ export const MESSAGE_COLYSEUS = {
     EATED_FOOD: 'eated_food',
     CLEANED_PET: 'cleaned_pet',
     PLAYED_PET: 'played_pet',
-    STATE_SYNC: 'pets_state_sync'
+    STATE_SYNC: 'pets_state_sync',
+    CREATE_POOP: 'create_poop'
   },
   ACTION: {
     RESPONSE: 'action_response',
