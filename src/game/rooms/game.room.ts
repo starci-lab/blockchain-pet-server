@@ -33,12 +33,6 @@ export class GameRoom extends Room<GameRoomState> {
     this.setState(new GameRoomState())
     this.state.roomName = options?.name || 'Pet Simulator Room'
 
-    // console.log('🎧 Initializing service event listeners...');
-    // PlayerService.initializeEventListeners();
-    // PetService.initializeEventListeners();
-    // InventoryService.initializeEventListeners();
-    // console.log('✅ All service event listeners initialized');
-
     this.loggingService.logRoomCreated()
   }
 

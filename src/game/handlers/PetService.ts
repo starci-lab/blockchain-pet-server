@@ -65,13 +65,13 @@ export class PetService {
       const user = await userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await petModel.find({ owner_id: user._id }).populate<{ type: PetType }>('type').exec()
+      const dbPets = await petModel.find({ owner_id: user._id }).populate('type').exec()
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
         pet.id = (dbPet._id as Types.ObjectId).toString()
         pet.ownerId = walletAddress
-        pet.petType = dbPet.type?.name || 'chog'
+        pet.petType = (dbPet.type as PetType)?.name || 'chog'
         pet.hunger = dbPet.stats?.hunger ?? 50
         pet.happiness = dbPet.stats?.happiness ?? 50
         pet.cleanliness = dbPet.stats?.cleanliness ?? 50
@@ -80,9 +80,9 @@ export class PetService {
         pet.lastUpdateCleanliness = dbPet.stats?.last_update_cleanliness?.toISOString() ?? ''
         pet.isAdult = dbPet.isAdult ?? false
         pet.birthTime = dbPet.createdAt?.toISOString() ?? ''
-        pet.growthDuration = dbPet.type.time_natural || 0
+        pet.growthDuration = (dbPet.type as PetType)?.time_natural || 0
         pet.incomeCycleTime = dbPet.token_income || 0
-        pet.incomePerCycle = dbPet.type.max_income_per_claim || 0
+        pet.incomePerCycle = (dbPet.type as PetType)?.max_income_per_claim || 0
         pet.lastClaim = dbPet.last_claim?.toISOString() ?? ''
         pet.lastUpdated = Date.now()
         return pet
@@ -168,6 +168,7 @@ export class PetService {
 
         // Lấy lại danh sách pet mới nhất từ DB
         const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress)
+        console.log(1231313, petsFromDb)
         // Cập nhật state cho player
         if (!player.pets) player.pets = new MapSchema<Pet>()
         else player.pets.clear()
