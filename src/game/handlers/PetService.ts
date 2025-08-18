@@ -1,5 +1,5 @@
 import { DatabaseService } from '../services/DatabaseService'
-import { GamePoop, Pet, Player } from '../schemas/game-room.schema'
+import { Pet, PetPoop, Player } from '../schemas/game-room.schema'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { ResponseBuilder } from '../utils/ResponseBuilder'
@@ -12,7 +12,7 @@ import { PetStats as GamePetStats } from '../types/GameTypes'
 import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
 import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
 import { PetType } from 'src/api/pet/schemas/pet-type.schema'
-import { Poop } from 'src/api/pet/schemas/poop.schema'
+import { Poop, PoopDocument } from 'src/api/pet/schemas/poop.schema'
 
 export class PetService {
   // Initialize event listeners
@@ -71,10 +71,18 @@ export class PetService {
       const user = await userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await petModel.find({ owner_id: user._id }).populate('type').exec()
+      const dbPets = await petModel.find({ owner_id: user._id }).populate('type', 'poops').exec()
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
+        const gamePoops = (dbPet.poops ?? []).map((poop: PoopDocument) => {
+          const gamePoop = new PetPoop()
+          gamePoop.id = (poop._id as Types.ObjectId).toString()
+          gamePoop.positionX = +poop.position_x
+          gamePoop.positionY = +poop.position_y
+          return gamePoop
+        })
+
         pet.id = (dbPet._id as Types.ObjectId).toString()
         pet.ownerId = walletAddress
         pet.petType = (dbPet.type as PetType)?.name || 'chog'
@@ -90,6 +98,7 @@ export class PetService {
         pet.incomeCycleTime = dbPet.token_income || 0
         pet.incomePerCycle = (dbPet.type as PetType)?.max_income_per_claim || 0
         pet.lastClaim = dbPet.last_claim?.toISOString() ?? ''
+        pet.poops = gamePoops
         pet.lastUpdated = Date.now()
         return pet
       })
@@ -677,7 +686,7 @@ export class PetService {
 
   // TODO: New code
   static async handleCleanedPet(eventData: PetEventData) {
-    const { sessionId, petId, room, client, cleanlinessLevel } = eventData
+    const { sessionId, petId, room, client, cleanlinessLevel, poopId } = eventData
     try {
       const player = room.state.players.get(sessionId)
       if (!petId) {
@@ -715,6 +724,10 @@ export class PetService {
 
       // Update colesyus state
       pet.cleanliness = cleanliness
+
+      // remove poop from pet poops array
+      pet.poops = pet.poops.filter((poop) => poop.id !== poopId)
+
       pet.lastUpdated = Date.now()
 
       // Update colesyus player pets collection
@@ -735,6 +748,7 @@ export class PetService {
       // Update DB
       const dbService = DatabaseService.getInstance()
       const petModel = dbService.getPetModel()
+      const poopModel = dbService.getPoopModel()
 
       const updatedPet = await petModel.findByIdAndUpdate(
         {
@@ -748,7 +762,11 @@ export class PetService {
         }
       )
 
-      if (!updatedPet) {
+      const deletedPoop = await poopModel.findByIdAndDelete({
+        _id: poopId as string
+      })
+
+      if (!updatedPet || !deletedPoop) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
           action: 'cleaned_pet',
@@ -916,9 +934,8 @@ export class PetService {
       }
 
       // handle update pet state
-      const gamePoop = new GamePoop()
+      const gamePoop = new PetPoop()
       gamePoop.id = createdPoop._id as string
-      gamePoop.petId = petId
       gamePoop.positionX = +positionX
       gamePoop.positionY = +positionY
 
@@ -963,11 +980,16 @@ export class PetService {
     // Clear existing pets
     player.pets.clear()
 
-    const now = new Date().toISOString()
-
     // Add pets from database to player state
     userPets.forEach((dbPet: DBPet) => {
       const pet = new Pet()
+      const gamePoops = (dbPet.poops ?? []).map((poop) => {
+        const gamePoop = new PetPoop()
+        gamePoop.id = poop._id.toString()
+        gamePoop.positionX = +poop.position_x
+        gamePoop.positionY = +poop.position_y
+        return gamePoop
+      })
       pet.id = dbPet._id.toString()
       pet.ownerId = player.sessionId
       pet.petType = dbPet.type?.name || 'chog'
@@ -983,8 +1005,7 @@ export class PetService {
       pet.incomeCycleTime = dbPet.token_income || 0
       pet.incomePerCycle = dbPet.type.max_income_per_claim || 0
       pet.lastClaim = dbPet.last_claim?.toISOString() ?? ''
-      pet.lastClaim = dbPet.last_claim?.toISOString() || now
-
+      pet.poops = gamePoops
       pet.lastUpdated = Date.now()
       player.pets.set(pet.id, pet)
     })

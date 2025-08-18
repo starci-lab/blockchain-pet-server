@@ -78,6 +78,7 @@ export interface PetEventData {
   cleanlinessLevel?: number
   isBuyPet?: boolean
   foodType?: string
+  poopId?: string
 }
 
 export interface PoopEvenData {
@@ -123,6 +124,12 @@ export interface PetType {
   max_income_per_claim: number
 }
 
+export interface DBPetPoop {
+  _id: Types.ObjectId
+  position_x: number
+  position_y: number
+}
+
 export interface DBPet {
   _id: Types.ObjectId
   type: PetType
@@ -138,6 +145,7 @@ export interface DBPet {
   token_income: number
   total_income: number
   last_claim: Date
+  poops: DBPetPoop[]
   owner_id: Types.ObjectId
   createdAt: Date
   updatedAt: Date
