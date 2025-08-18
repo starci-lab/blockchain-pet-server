@@ -750,21 +750,25 @@ export class PetService {
       const petModel = dbService.getPetModel()
       const poopModel = dbService.getPoopModel()
 
-      const updatedPet = await petModel.findByIdAndUpdate(
-        {
-          _id: petId,
-          status: PetStatus.Active
-        },
-        {
-          $set: {
-            'stats.cleanliness': cleanliness
+      const [updatedPet, deletedPoop] = await Promise.all([
+        petModel.findByIdAndUpdate(
+          {
+            _id: petId,
+            status: PetStatus.Active
+          },
+          {
+            $set: {
+              'stats.cleanliness': cleanliness
+            }
+          },
+          {
+            new: true
           }
-        }
-      )
-
-      const deletedPoop = await poopModel.findByIdAndDelete({
-        _id: poopId as string
-      })
+        ),
+        poopModel.findByIdAndDelete({
+          _id: poopId as string
+        })
+      ])
 
       if (!updatedPet || !deletedPoop) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
