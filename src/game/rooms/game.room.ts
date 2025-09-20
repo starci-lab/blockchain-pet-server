@@ -7,7 +7,7 @@ import { MapSchema } from '@colyseus/schema'
 import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { PetEmitters } from 'src/game/emitter/PetEmitters'
-import { FoodEmitters } from 'src/game/emitter/FoodEmitters'
+import { FoodEmitters } from 'src/game/food/food.emitters'
 import { PlayerEmitter } from 'src/game/emitter/player'
 import { LoggingService } from 'src/game/handlers/LoggingService'
 import { PlayerService } from 'src/game/handlers/PlayerService'
@@ -19,10 +19,12 @@ import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS // Single player only
   public loggingService: LoggingService
+  public foodEmitters: FoodEmitters
   private lastPlayerSave: number = 0
 
   onCreate(options: RoomOptions) {
     this.loggingService = new LoggingService(this)
+    this.foodEmitters = new FoodEmitters()
     this.initializeRoom(options)
     this.setupMessageHandlers()
     this.startGameLoop()
@@ -57,9 +59,9 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage(MESSAGE_COLYSEUS.PET.CREATE_POOP, PetEmitters.createPoop(this))
 
     // Food emitters (emit events to InventoryService)
-    this.onMessage(MESSAGE_COLYSEUS.PET.BUY_FOOD, FoodEmitters.purchaseItem(this))
-    this.onMessage('get_store_catalog', FoodEmitters.getStoreCatalog(this))
-    this.onMessage('get_inventory', FoodEmitters.getInventory(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.BUY_FOOD, this.foodEmitters.purchaseItem(this))
+    this.onMessage('get_store_catalog', this.foodEmitters.getStoreCatalog(this))
+    this.onMessage('get_inventory', this.foodEmitters.getInventory(this))
 
     // Player emitters (emit events to PlayerService)
     this.onMessage('request_game_config', PlayerEmitter.requestGameConfig(this))

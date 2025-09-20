@@ -1,11 +1,15 @@
+import { Injectable } from '@nestjs/common'
 import { Client } from 'colyseus'
 import { eventBus } from 'src/shared/even-bus'
 import { GameRoom } from '../rooms/game.room'
 import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
+
+@Injectable()
 export class FoodEmitters {
-  static purchaseItem(room: GameRoom) {
+  // Purchase food item
+  purchaseItem(room: GameRoom) {
     return (client: Client, data: { itemType: string; itemName: string; quantity: number; itemId: string }) => {
-      console.log(`🛒 [Handler] Purchase item request:`, data)
+      console.log(`🛒 [FoodEmitter] Purchase item request:`, data)
 
       // Emit event to InventoryService for processing
       eventBus.emit(EMITTER_EVENT_BUS.PET.BUY_FOOD, {
@@ -21,9 +25,9 @@ export class FoodEmitters {
   }
 
   // Get store catalog
-  static getStoreCatalog(room: GameRoom) {
+  getStoreCatalog(room: GameRoom) {
     return (client: Client) => {
-      console.log(`� [Handler] Get store catalog request`)
+      console.log(`🏪 [FoodEmitter] Get store catalog request`)
 
       // Emit event to InventoryService for processing
       eventBus.emit('inventory.get_catalog', {
@@ -35,13 +39,30 @@ export class FoodEmitters {
   }
 
   // Get player inventory
-  static getInventory(room: GameRoom) {
+  getInventory(room: GameRoom) {
     return (client: Client) => {
-      console.log(`📦 [Handler] Get inventory request`)
+      console.log(`📦 [FoodEmitter] Get inventory request`)
 
       // Emit event to InventoryService for processing
       eventBus.emit('inventory.get', {
         sessionId: client.sessionId,
+        room,
+        client
+      })
+    }
+  }
+
+  // Feed pet with food
+  feedPet(room: GameRoom) {
+    return (client: Client, data: { petId: string; foodType: string; quantity: number }) => {
+      console.log(`🍽️ [FoodEmitter] Feed pet request:`, data)
+
+      // Emit event for feeding pet
+      eventBus.emit(EMITTER_EVENT_BUS.PET.FEED_PET, {
+        sessionId: client.sessionId,
+        petId: data.petId,
+        foodType: data.foodType,
+        quantity: data.quantity,
         room,
         client
       })
