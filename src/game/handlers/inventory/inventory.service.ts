@@ -1,5 +1,5 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common'
-import { InjectModel, InjectConnection } from '@nestjs/mongoose'
+import { InjectConnection } from '@nestjs/mongoose'
 import { Model, Connection, ClientSession } from 'mongoose'
 import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { eventBus } from 'src/shared/even-bus'
@@ -42,10 +42,14 @@ const STORE_ITEMS: StoreItems = {
 export class InventoryService {
   constructor(
     @Inject(forwardRef(() => PlayerService)) private playerService: PlayerService,
-    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>,
     @InjectConnection() private connection: Connection
   ) {
     this.setupEventListeners()
+  }
+
+  // Lazy load model - chỉ tạo khi cần dùng
+  private get storeItemModel(): Model<StoreItemDocument> {
+    return this.connection.model<StoreItemDocument>(StoreItem.name)
   }
 
   // Helper method to execute operations with transaction
@@ -164,7 +168,6 @@ export class InventoryService {
         if (!this.playerService) {
           throw new Error('PlayerService not available')
         }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
         const tokenDeducted = await this.playerService.deductTokensWithSession(player, price, session)
         if (!tokenDeducted) {
           throw new Error('Failed to deduct tokens')

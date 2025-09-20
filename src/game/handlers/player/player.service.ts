@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model, ClientSession } from 'mongoose'
+import { InjectConnection } from '@nestjs/mongoose'
+import { Model, ClientSession, Connection } from 'mongoose'
 import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
@@ -100,10 +100,18 @@ interface EventData {
 export class PlayerService {
   constructor(
     @Inject(forwardRef(() => PetService)) private petService: PetService,
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(Pet.name) private petModel: Model<PetDocument>
+    @InjectConnection() private connection: Connection
   ) {
     this.setupEventListeners()
+  }
+
+  // Lazy load models - chỉ tạo khi cần dùng
+  private get userModel(): Model<UserDocument> {
+    return this.connection.model<UserDocument>(User.name)
+  }
+
+  private get petModel(): Model<PetDocument> {
+    return this.connection.model<PetDocument>(Pet.name)
   }
 
   private setupEventListeners() {

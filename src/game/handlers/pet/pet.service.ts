@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
+import { InjectConnection } from '@nestjs/mongoose'
+import { Model, Connection } from 'mongoose'
 import { Pet, PetPoop, Player } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
@@ -20,14 +20,29 @@ import { StoreItem, StoreItemDocument } from 'src/api/store-item/schemas/store-i
 
 @Injectable()
 export class PetService {
-  constructor(
-    @InjectModel(Pet.name) private petModel: Model<PetDocument>,
-    @InjectModel(PetType.name) private petTypeModel: Model<PetTypeDocument>,
-    @InjectModel(Poop.name) private poopModel: Model<PoopDocument>,
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>
-  ) {
+  constructor(@InjectConnection() private connection: Connection) {
     this.setupEventListeners()
+  }
+
+  // Lazy load models - chỉ tạo khi cần dùng
+  private get petModel(): Model<PetDocument> {
+    return this.connection.model<PetDocument>(Pet.name)
+  }
+
+  private get petTypeModel(): Model<PetTypeDocument> {
+    return this.connection.model<PetTypeDocument>(PetType.name)
+  }
+
+  private get poopModel(): Model<PoopDocument> {
+    return this.connection.model<PoopDocument>(Poop.name)
+  }
+
+  private get userModel(): Model<UserDocument> {
+    return this.connection.model<UserDocument>(User.name)
+  }
+
+  private get storeItemModel(): Model<StoreItemDocument> {
+    return this.connection.model<StoreItemDocument>(StoreItem.name)
   }
 
   private setupEventListeners() {
