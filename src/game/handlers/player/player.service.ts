@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Inject, forwardRef } from '@nestjs/common'
 import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { PetService } from '../pet/pet.service'
-import { InventoryService } from '../InventoryService'
+import { InventoryService } from '../inventory/inventory.service'
 import { DatabaseService } from '../../services/DatabaseService'
 import { Types } from 'mongoose'
 import { DBPet } from '../../types/GameTypes'
@@ -95,7 +95,7 @@ interface EventData {
 
 @Injectable()
 export class PlayerService {
-  constructor(private petService: PetService) {
+  constructor(@Inject(forwardRef(() => PetService)) private petService: PetService) {
     this.setupEventListeners()
   }
 
@@ -116,6 +116,15 @@ export class PlayerService {
     eventBus.on('player.update_tutorial', (data: EventData) => this.handleUpdateTutorial(data))
 
     console.log('✅ PlayerService event listeners initialized')
+  }
+
+  // Static method for initializing event listeners (for backward compatibility)
+  static initializeEventListeners() {
+    console.log('🎧 Initializing PlayerService event listeners...')
+
+    // For now, we'll just log that the service is initialized
+    // The actual event handling will be done by the injected instances
+    console.log('✅ PlayerService event listeners initialized (handled by injected instances)')
   }
 
   // Helper methods for responses

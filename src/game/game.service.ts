@@ -4,16 +4,20 @@ import { WebSocketTransport } from '@colyseus/ws-transport'
 import { GameRoom } from './rooms/game.room'
 import { getRedisConfig, createRedisPresence, createRedisDriver } from './config/redis.config'
 import * as http from 'http'
-import { PlayerService } from './handlers/PlayerService'
-import { InventoryService } from './handlers/InventoryService'
-import { PetService } from './handlers/PetService'
+import { PlayerService } from './handlers/player/player.service'
+import { InventoryService } from './handlers/inventory/inventory.service'
+import { PetService } from './handlers/pet/pet.service'
 
 @Injectable()
 export class GameService implements OnModuleInit, OnApplicationShutdown {
   private static servicesInitialized = false
   private gameServer: Server
 
-  constructor() {
+  constructor(
+    // private readonly playerService: PlayerService,
+    private readonly inventoryService: InventoryService,
+    private readonly petService: PetService
+  ) {
     console.log('🎮 Creating Game Service...')
     // Server sẽ được tạo sau khi có HTTP server từ main.ts
   }

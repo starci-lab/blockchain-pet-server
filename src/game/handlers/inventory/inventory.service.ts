@@ -1,12 +1,13 @@
-import { Player, InventoryItem } from '../schemas/game-room.schema'
+import { Injectable, Inject, forwardRef } from '@nestjs/common'
+import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { eventBus } from 'src/shared/even-bus'
-import { PlayerService } from './PlayerService'
-import { StoreItems, InventoryEventData, InventorySummary } from '../types/GameTypes'
+import { PlayerService } from '../player/player.service'
+import { StoreItems, InventoryEventData, InventorySummary } from '../../types/GameTypes'
 import { Client } from 'colyseus'
-import { GameRoom } from '../rooms/game.room'
-import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
-import { DatabaseService } from '../services/DatabaseService'
-import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
+import { GameRoom } from '../../rooms/game.room'
+import { EMITTER_EVENT_BUS } from '../../constants/message-event-bus'
+import { DatabaseService } from '../../services/DatabaseService'
+import { MESSAGE_COLYSEUS } from '../../constants/message-colyseus'
 
 interface CatalogEventData {
   client: Client
@@ -35,9 +36,14 @@ const STORE_ITEMS: StoreItems = {
   }
 }
 
+@Injectable()
 export class InventoryService {
+  constructor(@Inject(forwardRef(() => PlayerService)) private playerService: PlayerService) {
+    this.setupEventListeners()
+  }
+
   // Initialize event listeners
-  static initializeEventListeners() {
+  private setupEventListeners() {
     console.log('🎧 Initializing InventoryService event listeners...')
 
     // Listen for purchase events
@@ -54,7 +60,31 @@ export class InventoryService {
     console.log('✅ InventoryService event listeners initialized')
   }
 
-  static async getStoreItem(itemId: string) {
+  // Static method for initializing event listeners (for backward compatibility)
+  static initializeEventListeners() {
+    console.log('🎧 Initializing InventoryService event listeners...')
+
+    // Listen for purchase events
+    eventBus.on(EMITTER_EVENT_BUS.PET.BUY_FOOD, (eventData: InventoryEventData) => {
+      // For now, we'll just log that the event was received
+      // The actual handling will be done by the injected instances
+      console.log('📦 [InventoryService] Purchase event received:', eventData.itemType, eventData.itemId)
+    })
+
+    // Listen for catalog requests
+    eventBus.on('inventory.get_catalog', () => {
+      console.log('📋 [InventoryService] Catalog request received')
+    })
+
+    // Listen for inventory requests
+    eventBus.on('inventory.get', () => {
+      console.log('📦 [InventoryService] Inventory request received')
+    })
+
+    console.log('✅ InventoryService event listeners initialized')
+  }
+
+  async getStoreItem(itemId: string) {
     try {
       const dbService = DatabaseService.getInstance()
       const storeItemModel = dbService.getStoreItemModel()
@@ -67,7 +97,7 @@ export class InventoryService {
   }
 
   //TODO: NEW Event handlers
-  static async handlePurchaseItem(eventData: InventoryEventData) {
+  async handlePurchaseItem(eventData: InventoryEventData) {
     try {
       const { sessionId, itemType, itemId, quantity, room, client } = eventData
 
@@ -105,7 +135,7 @@ export class InventoryService {
       const price = storeItem.cost_nom * quantity
 
       //check if player has enough tokens
-      const hasEnoughTokens = await PlayerService.hasEnoughTokens(player, price)
+      const hasEnoughTokens = await this.playerService.hasEnoughTokens(player, price)
       if (!hasEnoughTokens) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
@@ -116,7 +146,7 @@ export class InventoryService {
       }
 
       //deduct tokens from player
-      const tokenDeducted = await PlayerService.deductTokens(player, price)
+      const tokenDeducted = await this.playerService.deductTokens(player, price)
       if (!tokenDeducted) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
           success: false,
@@ -127,7 +157,7 @@ export class InventoryService {
       }
 
       // add item to player inventory
-      this.addItem(player, itemType, itemId, storeItem.name, quantity)
+      InventoryService.addItem(player, itemType, itemId, storeItem.name, quantity)
       //emit event to player
       client.send(MESSAGE_COLYSEUS.ACTION.PURCHASE_RESPONSE, {
         success: true,
@@ -140,7 +170,7 @@ export class InventoryService {
     }
   }
 
-  static handleGetCatalog(eventData: CatalogEventData) {
+  handleGetCatalog(eventData: CatalogEventData) {
     const { client } = eventData
 
     client.send('store-catalog', {
@@ -151,7 +181,7 @@ export class InventoryService {
     console.log(`📋 [Service] Sent store catalog`)
   }
 
-  static handleGetInventory(eventData: GetInventoryEventData) {
+  handleGetInventory(eventData: GetInventoryEventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -163,7 +193,7 @@ export class InventoryService {
       return
     }
 
-    const inventorySummary = this.getInventorySummary(player)
+    const inventorySummary = InventoryService.getInventorySummary(player)
 
     client.send('inventory-response', {
       success: true,

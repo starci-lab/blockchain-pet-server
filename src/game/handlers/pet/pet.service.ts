@@ -4,7 +4,7 @@ import { Pet, PetPoop, Player } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { ResponseBuilder } from '../../utils/ResponseBuilder'
-import { InventoryService } from '../InventoryService'
+import { InventoryService } from '../inventory/inventory.service'
 import { MapSchema } from '@colyseus/schema'
 import { PetStatus } from 'src/api/pet/schemas/pet.schema'
 import { PetEventData, DBPet, PoopEvenData } from '../../types/GameTypes'
@@ -62,6 +62,15 @@ export class PetService {
     })
 
     console.log('✅ PetService event listeners initialized')
+  }
+
+  // Static method for initializing event listeners (for backward compatibility)
+  static initializeEventListeners() {
+    console.log('🎧 Initializing PetService event listeners...')
+
+    // For now, we'll just log that the service is initialized
+    // The actual event handling will be done by the injected instances
+    console.log('✅ PetService event listeners initialized (handled by injected instances)')
   }
 
   // Helper methods for responses

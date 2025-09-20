@@ -4,6 +4,7 @@ import { GameService } from 'src/game/game.service'
 import { DatabaseService } from './services/DatabaseService'
 import { FoodEmitterModule } from './emitter/food/food-emitter.module'
 import { FoodHandlerModule } from './handlers/food/food-handler.module'
+import { InventoryHandlerModule } from './handlers/inventory/inventory-handler.module'
 import { PlayerEmitterModule } from './emitter/player/player-emitter.module'
 import { PlayerHandlerModule } from './handlers/player/player-handler.module'
 import { PetEmitterModule } from './emitter/pet/pet-emitter.module'
@@ -18,6 +19,7 @@ import { Poop, PoopSchema } from 'src/api/pet/schemas/poop.schema'
   imports: [
     FoodEmitterModule,
     FoodHandlerModule,
+    InventoryHandlerModule,
     PlayerEmitterModule,
     PlayerHandlerModule,
     PetEmitterModule,
@@ -36,6 +38,7 @@ import { Poop, PoopSchema } from 'src/api/pet/schemas/poop.schema'
     DatabaseService,
     FoodEmitterModule,
     FoodHandlerModule,
+    InventoryHandlerModule,
     PlayerEmitterModule,
     PlayerHandlerModule,
     PetEmitterModule,

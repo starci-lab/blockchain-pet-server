@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common'
+import { Module, forwardRef } from '@nestjs/common'
 import { PlayerService } from './player.service'
-import { PetService } from '../pet/pet.service'
+import { PetHandlerModule } from '../pet/pet-handler.module'
 
 @Module({
-  providers: [PlayerService, PetService],
+  imports: [forwardRef(() => PetHandlerModule)],
+  providers: [PlayerService],
   exports: [PlayerService]
 })
 export class PlayerHandlerModule {}
