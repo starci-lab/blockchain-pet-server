@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { Client } from 'colyseus'
 import { eventBus } from 'src/shared/even-bus'
-import { GameRoom } from '../rooms/game.room'
-import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
+import { GameRoom } from '../../rooms/game.room'
+import { EMITTER_EVENT_BUS } from '../../constants/message-event-bus'
 
 @Injectable()
 export class FoodEmitters {
@@ -11,7 +11,7 @@ export class FoodEmitters {
     return (client: Client, data: { itemType: string; itemName: string; quantity: number; itemId: string }) => {
       console.log(`🛒 [FoodEmitter] Purchase item request:`, data)
 
-      // Emit event to InventoryService for processing
+      // Emit event to FoodService for processing
       eventBus.emit(EMITTER_EVENT_BUS.PET.BUY_FOOD, {
         sessionId: client.sessionId,
         itemId: data.itemId,
@@ -29,8 +29,8 @@ export class FoodEmitters {
     return (client: Client) => {
       console.log(`🏪 [FoodEmitter] Get store catalog request`)
 
-      // Emit event to InventoryService for processing
-      eventBus.emit('inventory.get_catalog', {
+      // Emit event to FoodService for processing
+      eventBus.emit('food.get_catalog', {
         sessionId: client.sessionId,
         room,
         client
@@ -43,8 +43,8 @@ export class FoodEmitters {
     return (client: Client) => {
       console.log(`📦 [FoodEmitter] Get inventory request`)
 
-      // Emit event to InventoryService for processing
-      eventBus.emit('inventory.get', {
+      // Emit event to FoodService for processing
+      eventBus.emit('food.get_inventory', {
         sessionId: client.sessionId,
         room,
         client
