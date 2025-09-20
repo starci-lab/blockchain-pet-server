@@ -1,13 +1,18 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { Document, Types } from 'mongoose'
 import { PetStats, PetType } from 'src/api/pet/schemas/pet-type.schema'
+import { Poop } from './poop.schema'
 
 export enum PetStatus {
   Active = 'active',
   Exhausted = 'exhausted'
 }
 
-export type PetDocument = Pet & Document
+export type PetDocument = Pet &
+  Document & {
+    createdAt: Date
+    updatedAt: Date
+  }
 
 @Schema({ timestamps: true })
 export class Pet {
@@ -48,6 +53,9 @@ export class Pet {
 
   @Prop({ type: Number, required: true, default: 0 })
   total_income: number
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Poop' }], required: true, default: [] })
+  poops: (Types.ObjectId | Poop)[]
 
   @Prop({ type: Date, required: true, default: () => new Date() })
   last_claim: Date

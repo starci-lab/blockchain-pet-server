@@ -78,11 +78,61 @@ export interface PetEventData {
   cleanlinessLevel?: number
   isBuyPet?: boolean
   foodType?: string
+  poopId?: string
+}
+
+export interface PoopEvenData {
+  sessionId: string
+  petId?: string
+  room: GameRoom
+  client: Client
+  positionX: number
+  positionY: number
+}
+
+export interface PetType {
+  _id: Types.ObjectId
+  default_stats: {
+    hunger: number
+    last_update_hunger: Date
+    happiness: number
+    last_update_happiness: Date
+    cleanliness: number
+    last_update_cleanliness: Date
+  }
+  img_url: string
+  description: string
+  stat_decay: {
+    hunger: {
+      min: number
+      max: number
+    }
+    happiness: {
+      min: number
+      max: number
+    }
+    cleanliness: {
+      min: number
+      max: number
+    }
+  }
+  cost_nom: number
+  name: string
+  time_natural: number
+  max_income: number
+  income_per_claim: number
+  max_income_per_claim: number
+}
+
+export interface DBPetPoop {
+  _id: Types.ObjectId
+  position_x: number
+  position_y: number
 }
 
 export interface DBPet {
   _id: Types.ObjectId
-  type: { name: string }
+  type: PetType
   stats: {
     hunger: number
     happiness: number
@@ -95,5 +145,8 @@ export interface DBPet {
   token_income: number
   total_income: number
   last_claim: Date
+  poops: DBPetPoop[]
   owner_id: Types.ObjectId
+  createdAt: Date
+  updatedAt: Date
 }

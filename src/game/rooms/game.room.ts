@@ -33,12 +33,6 @@ export class GameRoom extends Room<GameRoomState> {
     this.setState(new GameRoomState())
     this.state.roomName = options?.name || 'Pet Simulator Room'
 
-    // console.log('🎧 Initializing service event listeners...');
-    // PlayerService.initializeEventListeners();
-    // PetService.initializeEventListeners();
-    // InventoryService.initializeEventListeners();
-    // console.log('✅ All service event listeners initialized');
-
     this.loggingService.logRoomCreated()
   }
 
@@ -60,6 +54,7 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage(MESSAGE_COLYSEUS.PET.EATED_FOOD, PetEmitters.eatedFood(this))
     this.onMessage(MESSAGE_COLYSEUS.PET.CLEANED_PET, PetEmitters.cleanedPet(this))
     this.onMessage(MESSAGE_COLYSEUS.PET.PLAYED_PET, PetEmitters.playedPet(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.CREATE_POOP, PetEmitters.createPoop(this))
 
     // Food emitters (emit events to InventoryService)
     this.onMessage(MESSAGE_COLYSEUS.PET.BUY_FOOD, FoodEmitters.purchaseItem(this))

@@ -1,56 +1,48 @@
 import { Schema, type, MapSchema } from '@colyseus/schema'
 
+// Poop schema
+export class PetPoop extends Schema {
+  @type('string') id: string = ''
+  @type('number') positionX: number = 0
+  @type('number') positionY: number = 0
+
+  constructor() {
+    super()
+  }
+}
+
 // Simplified Pet with essential stats only
 export class Pet extends Schema {
   @type('string') id: string = ''
   @type('string') ownerId: string = ''
+  @type('string') petType: string = 'chog' // Pet species/type
+
+  // Core stats
   @type('number') hunger: number = 100 // 0-100, decreases over time
   @type('number') happiness: number = 100 // 0-100, affected by feeding, playing
   @type('number') cleanliness: number = 100 // 0-100, decreases over time
-  @type('string') petType: string = 'chog' // Pet species/type
   @type('number') lastUpdated: number = 0 // For tracking stat decay
+
   @type('string') lastUpdateHappiness: string = '' // For tracking last fed time
   @type('string') lastUpdateHunger: string = '' // For tracking last fed time
   @type('string') lastUpdateCleanliness: string = '' // For tracking last fed time
+
+  // Growth tracking
   @type('boolean') isAdult: boolean = false
-  @type('number') tokenIncome: number = 0
-  @type('number') totalIncome: number = 0
-  @type('string') lastClaim: string = ''
+  @type('string') birthTime: string = '' // when pet is created
+  @type('number') growthDuration: number = 3600 // time to grow up
+
+  // Income cycle
+  @type('number') incomeCycleTime: number = 600 // earn cycle (seconds)
+  @type('number') incomePerCycle: number = 10 // max token / cycle
+  @type('string') lastClaim: string = '' // last claim
+
+  @type({ array: PetPoop }) poops: Array<PetPoop> = []
 
   constructor() {
     super()
     this.lastUpdated = Date.now()
   }
-
-  // TODO: read this instruction and implement it
-  //  @type("string") id: string = "";
-  // @type("string") ownerId: string = "";
-  // @type("string") petType: string = "chog"; // loại pet
-
-  // // --- Core stats ---
-  // @type("number") hunger: number = 100;        // 0-100
-  // @type("number") happiness: number = 100;     // 0-100
-  // @type("number") cleanliness: number = 100;   // 0-100
-  // @type("number") lastUpdated: number = Date.now(); // lần cuối decay
-
-  // @type("string") lastUpdateHunger: string = "";
-  // @type("string") lastUpdateHappiness: string = "";
-  // @type("string") lastUpdateCleanliness: string = "";
-
-  // // --- Growth tracking ---
-  // @type("boolean") isAdult: boolean = false;
-  // @type("number") birthTime: number = Date.now();    // when pet is created
-  // @type("number") growthDuration: number = 3600;     // time to grow up
-
-  // // --- Income cycle ---
-  // @type("number") incomeCycleTime: number = 600;     // earn cycle (seconds)
-  // @type("number") incomePerCycle: number = 10;       // max token / cycle
-  // @type("string") lastClaim: string = "";            // last claim
-
-  // constructor() {
-  //   super();
-  //   this.lastUpdated = Date.now();
-  // }
 }
 
 // Simple inventory item tracking
