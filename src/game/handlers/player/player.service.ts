@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
+import { Model, ClientSession } from 'mongoose'
 import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
@@ -874,6 +874,59 @@ export class PlayerService {
       return user.token_nom >= amount
     } catch (error) {
       console.error(`Failed to check if player has enough tokens:`, error)
+      return false
+    }
+  }
+
+  // Deduct tokens with transaction session
+  async deductTokensWithSession(player: Player, amount: number, session: ClientSession): Promise<boolean> {
+    if (player.tokens < amount) {
+      console.log(`❌ ${player.name} doesn't have enough tokens. Has: ${player.tokens}, needs: ${amount}`)
+      return false
+    }
+
+    try {
+      // Use player.walletAddress first, fallback to getWalletFromSession
+      let walletAddress = player.walletAddress
+      if (!walletAddress) {
+        const sessionWallet = this.getWalletFromSession(player.sessionId)
+        if (sessionWallet) {
+          walletAddress = sessionWallet
+        }
+      }
+
+      if (!walletAddress) {
+        console.warn(`No wallet address found for player ${player.name}, skipping token deduction`)
+        return false
+      }
+
+      // Update user with new token balance using session
+      const updateResult = await this.userModel
+        .findOneAndUpdate(
+          { wallet_address: walletAddress.toLowerCase() },
+          {
+            $inc: { token_nom: -amount },
+            last_active_at: new Date()
+          },
+          {
+            upsert: false,
+            new: true,
+            session // Use transaction session
+          }
+        )
+        .exec()
+
+      if (updateResult) {
+        // Update player's in-memory tokens
+        player.tokens -= amount
+        console.log(`💰 Deducted ${amount} tokens from ${player.name}. New balance: ${player.tokens}`)
+        return true
+      } else {
+        console.warn(`User not found in DB for wallet ${walletAddress}, tokens not deducted`)
+        return false
+      }
+    } catch (error) {
+      console.error(`❌ Failed to deduct tokens from DB for ${player.name}:`, error)
       return false
     }
   }

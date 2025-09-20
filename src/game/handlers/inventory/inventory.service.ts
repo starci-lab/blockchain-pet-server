@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
+import { InjectModel, InjectConnection } from '@nestjs/mongoose'
+import { Model, Connection, ClientSession } from 'mongoose'
 import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { eventBus } from 'src/shared/even-bus'
 import { PlayerService } from '../player/player.service'
@@ -42,9 +42,28 @@ const STORE_ITEMS: StoreItems = {
 export class InventoryService {
   constructor(
     @Inject(forwardRef(() => PlayerService)) private playerService: PlayerService,
-    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>
+    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>,
+    @InjectConnection() private connection: Connection
   ) {
     this.setupEventListeners()
+  }
+
+  // Helper method to execute operations with transaction
+  private async withTransaction<T>(operation: (session: ClientSession) => Promise<T>): Promise<T> {
+    const session = await this.connection.startSession()
+
+    try {
+      let result: T | undefined
+      await session.withTransaction(async () => {
+        result = await operation(session)
+      })
+      if (!result) {
+        throw new Error('Transaction operation returned undefined result')
+      }
+      return result
+    } finally {
+      await session.endSession()
+    }
   }
 
   // Initialize event listeners
@@ -124,53 +143,57 @@ export class InventoryService {
         return
       }
 
-      //check store item in database
-      const storeItem = await this.getStoreItem(itemId)
+      // Use transaction for purchase operation
+      const result = await this.withTransaction(async (session) => {
+        //check store item in database
+        const storeItem = await this.getStoreItem(itemId)
 
-      if (!storeItem) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'purchase_item',
-          message: `Store item ${itemId} not found`
-        })
-        return
-      }
+        if (!storeItem) {
+          throw new Error(`Store item ${itemId} not found`)
+        }
 
-      const price = storeItem.cost_nom * quantity
+        const price = storeItem.cost_nom * quantity
 
-      //check if player has enough tokens
-      const hasEnoughTokens = await this.playerService.hasEnoughTokens(player, price)
-      if (!hasEnoughTokens) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'purchase_item',
-          message: `Not enough tokens`
-        })
-        return
-      }
+        //check if player has enough tokens
+        const hasEnoughTokens = await this.playerService.hasEnoughTokens(player, price)
+        if (!hasEnoughTokens) {
+          throw new Error('Not enough tokens')
+        }
 
-      //deduct tokens from player
-      const tokenDeducted = await this.playerService.deductTokens(player, price)
-      if (!tokenDeducted) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'purchase_item',
-          message: `Failed to deduct tokens`
-        })
-        return
-      }
+        //deduct tokens from player (with session)
+        if (!this.playerService) {
+          throw new Error('PlayerService not available')
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+        const tokenDeducted = await this.playerService.deductTokensWithSession(player, price, session)
+        if (!tokenDeducted) {
+          throw new Error('Failed to deduct tokens')
+        }
 
-      // add item to player inventory
-      InventoryService.addItem(player, itemType, itemId, storeItem.name, quantity)
+        // add item to player inventory
+        InventoryService.addItem(player, itemType, itemId, storeItem.name, quantity)
+
+        return {
+          success: true,
+          message: `Purchased ${quantity}x ${itemId}`,
+          newTokenBalance: player.tokens
+        }
+      })
+
       //emit event to player
       client.send(MESSAGE_COLYSEUS.ACTION.PURCHASE_RESPONSE, {
         success: true,
         action: 'purchase_item',
-        message: `Purchased ${quantity}x ${itemId}`
+        message: result.message,
+        newTokenBalance: result.newTokenBalance
       })
     } catch (error) {
       console.log('Error purchasing item:', error)
-      throw error
+      eventData.client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
+        success: false,
+        action: 'purchase_item',
+        message: error instanceof Error ? error.message : 'Purchase failed'
+      })
     }
   }
 
