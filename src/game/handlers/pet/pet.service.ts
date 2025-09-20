@@ -1,23 +1,32 @@
 import { Injectable } from '@nestjs/common'
-import { DatabaseService } from '../../services/DatabaseService'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
 import { Pet, PetPoop, Player } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { ResponseBuilder } from '../../utils/ResponseBuilder'
 import { InventoryService } from '../inventory/inventory.service'
 import { MapSchema } from '@colyseus/schema'
-import { PetStatus } from 'src/api/pet/schemas/pet.schema'
+import { PetStatus, PetDocument } from 'src/api/pet/schemas/pet.schema'
 import { PetEventData, DBPet, PoopEvenData } from '../../types/GameTypes'
 import { Types } from 'mongoose'
 import { PetStats as GamePetStats } from '../../types/GameTypes'
 import { EMITTER_EVENT_BUS } from '../../constants/message-event-bus'
 import { MESSAGE_COLYSEUS } from '../../constants/message-colyseus'
-import { PetType } from 'src/api/pet/schemas/pet-type.schema'
+import { PetType, PetTypeDocument } from 'src/api/pet/schemas/pet-type.schema'
 import { Poop, PoopDocument } from 'src/api/pet/schemas/poop.schema'
+import { User, UserDocument } from 'src/api/user/schemas/user.schema'
+import { StoreItem, StoreItemDocument } from 'src/api/store-item/schemas/store-item.schema'
 
 @Injectable()
 export class PetService {
-  constructor() {
+  constructor(
+    @InjectModel(Pet.name) private petModel: Model<PetDocument>,
+    @InjectModel(PetType.name) private petTypeModel: Model<PetTypeDocument>,
+    @InjectModel(Poop.name) private poopModel: Model<PoopDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>
+  ) {
     this.setupEventListeners()
   }
 
@@ -95,15 +104,12 @@ export class PetService {
   async fetchPetsFromDatabase(walletAddress: string): Promise<Pet[]> {
     if (!walletAddress) return []
     try {
-      const dbService = DatabaseService.getInstance()
-      if (!dbService) throw new Error('Database service not initialized')
-      const userModel = dbService.getUserModel()
-      const petModel = dbService.getPetModel()
+      // Use injected models directly
       // Find user by wallet address
-      const user = await userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
+      const user = await this.userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await petModel.find({ owner_id: user._id }).populate('type', 'poops').exec()
+      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('type', 'poops').exec()
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
@@ -171,19 +177,18 @@ export class PetService {
         player.tokens -= PET_PRICE
 
         // Lưu token mới vào DB
-        const dbService = DatabaseService.getInstance()
-        const userModel = dbService.getUserModel()
-        await userModel.updateOne(
+        // Use injected userModel directly
+        await this.userModel.updateOne(
           { wallet_address: player.walletAddress.toLowerCase() },
           { $inc: { token_nom: -PET_PRICE } }
         )
         // Tạo pet mới trong DB
-        const petModel = dbService.getPetModel()
+        // Use injected petModel directly
         //TODO: find by type pet ID
-        const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
+        const user = await this.userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
         if (!user) throw new Error('User not found in DB')
 
-        const createdPetDoc = await petModel.create({
+        const createdPetDoc = await this.petModel.create({
           owner_id: user._id,
           type: '6869e7a0bae4412d2195d11c',
           stats: {
@@ -514,10 +519,9 @@ export class PetService {
       }
 
       // Update DB
-      const dbService = DatabaseService.getInstance()
-      const petModel = dbService.getPetModel()
+      // Use injected petModel directly
 
-      const updatedPet = await petModel.findByIdAndUpdate(
+      const updatedPet = await this.petModel.findByIdAndUpdate(
         {
           _id: petId,
           status: PetStatus.Active
@@ -603,12 +607,10 @@ export class PetService {
       }
 
       // Update DB
-      const dbService = DatabaseService.getInstance()
-      const petModel = dbService.getPetModel()
-      const poopModel = dbService.getPoopModel()
+      // Use injected models directly
 
       const [updatedPet, deletedPoop] = await Promise.all([
-        petModel.findByIdAndUpdate(
+        this.petModel.findByIdAndUpdate(
           {
             _id: petId,
             status: PetStatus.Active
@@ -622,7 +624,7 @@ export class PetService {
             new: true
           }
         ),
-        poopModel.findByIdAndDelete({
+        this.poopModel.findByIdAndDelete({
           _id: poopId as string
         })
       ])
@@ -694,10 +696,9 @@ export class PetService {
       }
 
       // Cập nhật DB
-      const dbService = DatabaseService.getInstance()
-      const petModel = dbService.getPetModel()
+      // Use injected petModel directly
 
-      const updatedPet = await petModel.findByIdAndUpdate(
+      const updatedPet = await this.petModel.findByIdAndUpdate(
         {
           _id: petId,
           status: PetStatus.Active
@@ -747,8 +748,7 @@ export class PetService {
       }
 
       // TODO: Create poop in the room
-      const dbService = DatabaseService.getInstance()
-      const poopdModel = dbService.getPoopModel()
+      // Use injected poopModel directly
 
       const newPoop = new Poop()
       const petIdObject = new Types.ObjectId(petId)
@@ -757,7 +757,7 @@ export class PetService {
       newPoop.position_y = +positionY
 
       // Save to DB
-      const createdPoop = await poopdModel.create(newPoop)
+      const createdPoop = await this.poopModel.create(newPoop)
 
       if (!createdPoop) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))

@@ -1,10 +1,13 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
 import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { PetService } from '../pet/pet.service'
 import { InventoryService } from '../inventory/inventory.service'
-import { DatabaseService } from '../../services/DatabaseService'
+import { User, UserDocument } from 'src/api/user/schemas/user.schema'
+import { Pet, PetDocument } from 'src/api/pet/schemas/pet.schema'
 import { Types } from 'mongoose'
 import { DBPet } from '../../types/GameTypes'
 import { MESSAGE_COLYSEUS } from '../../constants/message-colyseus'
@@ -95,7 +98,11 @@ interface EventData {
 
 @Injectable()
 export class PlayerService {
-  constructor(@Inject(forwardRef(() => PetService)) private petService: PetService) {
+  constructor(
+    @Inject(forwardRef(() => PetService)) private petService: PetService,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Pet.name) private petModel: Model<PetDocument>
+  ) {
     this.setupEventListeners()
   }
 
@@ -227,14 +234,8 @@ export class PlayerService {
     console.log(`📋 [PlayerService] Fetching profile from DB for ${player.name}`)
 
     try {
-      // Get database service instance
-      const dbService = DatabaseService.getInstance()
-      if (!dbService) {
-        throw new Error('Database service not initialized')
-      }
-
-      const userModel = dbService.getUserModel()
-      const petModel = dbService.getPetModel()
+      // Use injected userModel directly
+      // Use injected petModel directly
 
       // Try to get wallet address from player first, fallback to session
       let walletAddress = player.walletAddress
@@ -249,7 +250,7 @@ export class PlayerService {
 
       if (walletAddress) {
         // Find user by wallet address
-        user = (await userModel
+        user = (await this.userModel
           .findOne({
             wallet_address: walletAddress.toLowerCase()
           })
@@ -285,7 +286,7 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = (await petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
+      const userPets = (await this.petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
 
       console.log(`🐕 Found ${userPets.length} pets for user ${user.wallet_address}`)
 
@@ -529,21 +530,13 @@ export class PlayerService {
     try {
       console.log(`🔍 Fetching user data for sessionId: ${sessionId}, wallet: ${addressWallet}`)
 
-      // Get database service instance
-      const dbService = DatabaseService.getInstance()
-      if (!dbService) {
-        console.warn('Database service not initialized, using defaults')
-        return this.getDefaultUserData(sessionId)
-      }
-
-      const userModel = dbService.getUserModel()
-      const petModel = dbService.getPetModel()
+      // Use injected models directly
 
       // Try to find user by wallet address or session
       let user: DatabaseUser | null = null
 
       if (addressWallet) {
-        user = (await userModel
+        user = (await this.userModel
           .findOne({
             wallet_address: addressWallet.toLowerCase()
           })
@@ -552,7 +545,7 @@ export class PlayerService {
 
       if (user) {
         console.log(`✅ User data fetched from DB:`, user.wallet_address)
-        const petCount = await petModel.countDocuments({ owner_id: user._id }).exec()
+        const petCount = await this.petModel.countDocuments({ owner_id: user._id }).exec()
 
         return {
           sessionId,
@@ -655,17 +648,10 @@ export class PlayerService {
   // Sync pets from database to player state during player creation
   async syncPlayerPetsFromDatabase(player: Player, walletAddress: string): Promise<void> {
     try {
-      const dbService = DatabaseService.getInstance()
-      if (!dbService) {
-        console.warn('Database service not initialized, skipping pet sync')
-        return
-      }
-
-      const userModel = dbService.getUserModel()
-      const petModel = dbService.getPetModel()
+      // Use injected models directly
 
       // Find user by wallet address
-      const user = (await userModel
+      const user = (await this.userModel
         .findOne({
           wallet_address: walletAddress.toLowerCase()
         })
@@ -677,7 +663,7 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = (await petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
+      const userPets = (await this.petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
 
       if (userPets.length > 0) {
         // Use PetService to sync pets to player state
@@ -715,11 +701,7 @@ export class PlayerService {
   // Helper method to save tokens to database
   async saveTokensToDatabase(player: Player, action: string, amount: number): Promise<void> {
     try {
-      const dbService = DatabaseService.getInstance()
-      if (!dbService) {
-        console.warn('Database service not initialized, skipping token save')
-        return
-      }
+      // Use injected userModel directly
 
       // Use player.walletAddress first, fallback to getWalletFromSession
       let walletAddress = player.walletAddress
@@ -737,10 +719,10 @@ export class PlayerService {
         return
       }
 
-      const userModel = dbService.getUserModel()
+      // Use injected userModel directly
 
       // Update user with new token balance and activity timestamp
-      const updateResult = await userModel
+      const updateResult = await this.userModel
         .findOneAndUpdate(
           { wallet_address: walletAddress.toLowerCase() },
           {
@@ -843,11 +825,7 @@ export class PlayerService {
     try {
       console.log(`💾 Saving player data for ${player.name}...`)
 
-      const dbService = DatabaseService.getInstance()
-      if (!dbService) {
-        console.warn('Database service not initialized, skipping player save')
-        return
-      }
+      // Use injected userModel directly
 
       // Use player.walletAddress first, fallback to getWalletFromSession
       let walletAddress = player.walletAddress
@@ -863,10 +841,10 @@ export class PlayerService {
         return
       }
 
-      const userModel = dbService.getUserModel()
+      // Use injected userModel directly
 
       // Update user activity and tokens
-      await userModel
+      await this.userModel
         .findOneAndUpdate(
           { wallet_address: walletAddress.toLowerCase() },
           {
@@ -885,10 +863,8 @@ export class PlayerService {
 
   async hasEnoughTokens(player: Player, amount: number): Promise<boolean> {
     try {
-      const dbService = DatabaseService.getInstance()
-
-      const userModel = dbService.getUserModel()
-      const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
+      // Use injected userModel directly
+      const user = await this.userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
 
       if (!user) {
         console.warn(`User not found in DB for wallet ${player.walletAddress}, skipping token check`)

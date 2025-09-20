@@ -1,9 +1,6 @@
 import { Room, Client } from 'colyseus'
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema'
 import { MapSchema } from '@colyseus/schema'
-// Emitters: Only emit events, no business logic
-
-// Services: Handle events with business logic
 import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { PetEmitters } from 'src/game/emitter/PetEmitters'
@@ -12,6 +9,7 @@ import { PlayerEmitter } from 'src/game/emitter/player'
 import { LoggingService } from 'src/game/handlers/LoggingService'
 import { PlayerService } from 'src/game/handlers/player/player.service'
 import { PetService } from 'src/game/handlers/pet/pet.service'
+import { GameService } from '../game.service'
 import { RoomOptions } from '../types/RoomTypes'
 import { GamePlayer } from '../types/GameTypes'
 import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
@@ -27,8 +25,11 @@ export class GameRoom extends Room<GameRoomState> {
   onCreate(options: RoomOptions) {
     this.loggingService = new LoggingService(this)
     this.foodEmitters = new FoodEmitters()
-    this.petService = new PetService()
-    this.playerService = new PlayerService(this.petService)
+
+    // Get services from GameService static methods
+    this.playerService = GameService.getPlayerService()
+    this.petService = GameService.getPetService()
+
     this.initializeRoom(options)
     this.setupMessageHandlers()
     this.startGameLoop()

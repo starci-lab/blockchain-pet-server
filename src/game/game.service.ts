@@ -11,14 +11,19 @@ import { PetService } from './handlers/pet/pet.service'
 @Injectable()
 export class GameService implements OnModuleInit, OnApplicationShutdown {
   private static servicesInitialized = false
+  private static playerService: PlayerService
+  private static petService: PetService
   private gameServer: Server
 
   constructor(
-    // private readonly playerService: PlayerService,
+    private readonly playerService: PlayerService,
     private readonly inventoryService: InventoryService,
     private readonly petService: PetService
   ) {
     console.log('🎮 Creating Game Service...')
+    // Store services in static properties for room access
+    GameService.playerService = this.playerService
+    GameService.petService = this.petService
     // Server sẽ được tạo sau khi có HTTP server từ main.ts
   }
 
@@ -125,5 +130,14 @@ export class GameService implements OnModuleInit, OnApplicationShutdown {
       status: 'running',
       timestamp: Date.now()
     }
+  }
+
+  // Static methods to access services from rooms
+  static getPlayerService(): PlayerService {
+    return GameService.playerService
+  }
+
+  static getPetService(): PetService {
+    return GameService.petService
   }
 }

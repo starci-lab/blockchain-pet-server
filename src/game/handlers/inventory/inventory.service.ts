@@ -1,4 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
 import { Player, InventoryItem } from '../../schemas/game-room.schema'
 import { eventBus } from 'src/shared/even-bus'
 import { PlayerService } from '../player/player.service'
@@ -6,8 +8,8 @@ import { StoreItems, InventoryEventData, InventorySummary } from '../../types/Ga
 import { Client } from 'colyseus'
 import { GameRoom } from '../../rooms/game.room'
 import { EMITTER_EVENT_BUS } from '../../constants/message-event-bus'
-import { DatabaseService } from '../../services/DatabaseService'
 import { MESSAGE_COLYSEUS } from '../../constants/message-colyseus'
+import { StoreItem, StoreItemDocument } from 'src/api/store-item/schemas/store-item.schema'
 
 interface CatalogEventData {
   client: Client
@@ -38,7 +40,10 @@ const STORE_ITEMS: StoreItems = {
 
 @Injectable()
 export class InventoryService {
-  constructor(@Inject(forwardRef(() => PlayerService)) private playerService: PlayerService) {
+  constructor(
+    @Inject(forwardRef(() => PlayerService)) private playerService: PlayerService,
+    @InjectModel(StoreItem.name) private storeItemModel: Model<StoreItemDocument>
+  ) {
     this.setupEventListeners()
   }
 
@@ -86,9 +91,8 @@ export class InventoryService {
 
   async getStoreItem(itemId: string) {
     try {
-      const dbService = DatabaseService.getInstance()
-      const storeItemModel = dbService.getStoreItemModel()
-      const storeItem = await storeItemModel.findOne({ _id: itemId })
+      // Use injected storeItemModel directly
+      const storeItem = await this.storeItemModel.findOne({ _id: itemId })
       return storeItem
     } catch (error) {
       console.log('Error getting store item:', error)
