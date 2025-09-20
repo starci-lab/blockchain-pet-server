@@ -1,12 +1,13 @@
-import { Player, InventoryItem } from '../schemas/game-room.schema'
-import { GAME_CONFIG } from '../config/GameConfig'
+import { Injectable } from '@nestjs/common'
+import { Player, InventoryItem } from '../../schemas/game-room.schema'
+import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
-import { PetService } from './PetService'
-import { InventoryService } from './InventoryService'
-import { DatabaseService } from '../services/DatabaseService'
+import { PetService } from '../pet/pet.service'
+import { InventoryService } from '../InventoryService'
+import { DatabaseService } from '../../services/DatabaseService'
 import { Types } from 'mongoose'
-import { DBPet } from '../types/GameTypes'
-import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
+import { DBPet } from '../../types/GameTypes'
+import { MESSAGE_COLYSEUS } from '../../constants/message-colyseus'
 
 interface DatabaseUser {
   _id: Types.ObjectId
@@ -92,106 +93,129 @@ interface EventData {
   tutorialData?: Record<string, unknown>
 }
 
+@Injectable()
 export class PlayerService {
-  // Initialize event listeners for player actions
-  static initializeEventListeners() {
+  constructor(private petService: PetService) {
+    this.setupEventListeners()
+  }
+
+  private setupEventListeners() {
     console.log('🎧 Initializing PlayerService event listeners...')
 
     // Listen for player events
-    eventBus.on('player.get_game_config', this.handleGetGameConfig.bind(this))
-    eventBus.on('player.get_state', this.handleGetPlayerState.bind(this))
-    eventBus.on('player.get_profile', (eventData: EventData) => {
-      void this.handleGetProfile(eventData)
+    eventBus.on('player.get_game_config', (data: EventData) => this.handleGetGameConfig(data))
+    eventBus.on('player.get_state', (data: EventData) => this.handleGetPlayerState(data))
+    eventBus.on('player.get_profile', (data: EventData) => {
+      void this.handleGetProfile(data)
     })
-    eventBus.on('player.get_pets_state', this.handleGetPetsState.bind(this))
-    eventBus.on('player.claim_daily_reward', (eventData: EventData) => {
-      void this.handleClaimDailyReward(eventData)
+    eventBus.on('player.get_pets_state', (data: EventData) => this.handleGetPetsState(data))
+    eventBus.on('player.claim_daily_reward', (data: EventData) => {
+      void this.handleClaimDailyReward(data)
     })
-    eventBus.on('player.update_settings', this.handleUpdateSettings.bind(this))
-    eventBus.on('player.update_tutorial', this.handleUpdateTutorial.bind(this))
+    eventBus.on('player.update_settings', (data: EventData) => this.handleUpdateSettings(data))
+    eventBus.on('player.update_tutorial', (data: EventData) => this.handleUpdateTutorial(data))
 
     console.log('✅ PlayerService event listeners initialized')
   }
 
-  // Event handlers
-  static handleGetGameConfig(eventData: EventData) {
-    const { sessionId, room, client } = eventData
-    const player = room.state.players.get(sessionId)
-
-    if (!player) {
-      client.send('game-config-response', {
-        success: false,
-        message: 'Player not found'
-      })
-      return
-    }
-
-    console.log(`⚙️ [Service] Sending game config to ${player.name}`)
-
-    client.send('game-config-response', {
+  // Helper methods for responses
+  private createSuccessResponse(data: Record<string, any>, message: string) {
+    return {
       success: true,
-      config: {
-        version: '1.0.0',
-        maxPets: 5, // Default max pets per player
-        updateInterval: GAME_CONFIG.ROOM.UPDATE_INTERVAL,
-        economy: {
-          initialTokens: GAME_CONFIG.ECONOMY.INITIAL_TOKENS,
-          starterFoodQuantity: GAME_CONFIG.ECONOMY.STARTER_FOOD_QUANTITY
-        },
-        pets: {
-          defaultType: GAME_CONFIG.PETS.DEFAULT_TYPE,
-          hungerDecayRate: 5,
-          happinessDecayRate: 3,
-          cleanlinessDecayRate: 2
-        }
-      }
-    })
+      data,
+      message,
+      timestamp: Date.now()
+    }
   }
 
-  static handleGetPlayerState(eventData: EventData) {
+  private createErrorResponse(message: string) {
+    return {
+      success: false,
+      error: message,
+      timestamp: Date.now()
+    }
+  }
+
+  // Event handlers
+  private handleGetGameConfig(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
     if (!player) {
-      client.send('player-state-response', {
-        success: false,
-        message: 'Player not found'
-      })
+      client.send('game-config-response', this.createErrorResponse('Player not found'))
       return
     }
 
-    console.log(`👤 [Service] Sending player state to ${player.name}`)
+    console.log(`⚙️ [PlayerService] Sending game config to ${player.name}`)
+
+    client.send(
+      'game-config-response',
+      this.createSuccessResponse(
+        {
+          config: {
+            version: '1.0.0',
+            maxPets: 5, // Default max pets per player
+            updateInterval: GAME_CONFIG.ROOM.UPDATE_INTERVAL,
+            economy: {
+              initialTokens: GAME_CONFIG.ECONOMY.INITIAL_TOKENS,
+              starterFoodQuantity: GAME_CONFIG.ECONOMY.STARTER_FOOD_QUANTITY
+            },
+            pets: {
+              defaultType: GAME_CONFIG.PETS.DEFAULT_TYPE,
+              hungerDecayRate: 5,
+              happinessDecayRate: 3,
+              cleanlinessDecayRate: 2
+            }
+          }
+        },
+        'Game config retrieved successfully'
+      )
+    )
+  }
+
+  private handleGetPlayerState(eventData: EventData) {
+    const { sessionId, room, client } = eventData
+    const player = room.state.players.get(sessionId)
+
+    if (!player) {
+      client.send('player-state-response', this.createErrorResponse('Player not found'))
+      return
+    }
+
+    console.log(`👤 [PlayerService] Sending player state to ${player.name}`)
 
     // Get player's pets from player state
-    const playerPets = PetService.getPlayerPets(player)
+    const playerPets = this.petService.getPlayerPets(player)
     const inventorySummary = InventoryService.getInventorySummary(player)
 
-    client.send('player-state-response', {
-      success: true,
-      player: {
-        sessionId: player.sessionId,
-        name: player.name,
-        tokens: player.tokens,
-        totalPetsOwned: player.totalPetsOwned,
-        inventory: inventorySummary
-      },
-      pets: playerPets.map((pet) => PetService.getPetStatsSummary(pet))
-    })
+    client.send(
+      'player-state-response',
+      this.createSuccessResponse(
+        {
+          player: {
+            sessionId: player.sessionId,
+            name: player.name,
+            tokens: player.tokens,
+            totalPetsOwned: player.totalPetsOwned,
+            inventory: inventorySummary
+          },
+          pets: playerPets.map((pet) => this.petService.getPetStatsSummary(pet))
+        },
+        'Player state retrieved successfully'
+      )
+    )
   }
 
-  static async handleGetProfile(eventData: EventData) {
+  private async handleGetProfile(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
     if (!player) {
-      client.send('profile-response', {
-        success: false,
-        message: 'Player not found'
-      })
+      client.send('profile-response', this.createErrorResponse('Player not found'))
       return
     }
 
-    console.log(`📋 [Service] Fetching profile from DB for ${player.name}`)
+    console.log(`📋 [PlayerService] Fetching profile from DB for ${player.name}`)
 
     try {
       // Get database service instance
@@ -229,20 +253,25 @@ export class PlayerService {
 
         const inventorySummary = InventoryService.getInventorySummary(player)
 
-        client.send('profile-response', {
-          success: true,
-          profile: {
-            sessionId: player.sessionId,
-            name: player.name,
-            wallet_address: walletAddress,
-            tokens: player.tokens,
-            totalPetsOwned: player.totalPetsOwned,
-            inventory: inventorySummary,
-            pets: [],
-            joinedAt: Date.now(),
-            lastActiveAt: new Date()
-          }
-        })
+        client.send(
+          'profile-response',
+          this.createSuccessResponse(
+            {
+              profile: {
+                sessionId: player.sessionId,
+                name: player.name,
+                wallet_address: walletAddress,
+                tokens: player.tokens,
+                totalPetsOwned: player.totalPetsOwned,
+                inventory: inventorySummary,
+                pets: [],
+                joinedAt: Date.now(),
+                lastActiveAt: new Date()
+              }
+            },
+            'Profile retrieved successfully'
+          )
+        )
         return
       }
 
@@ -252,7 +281,7 @@ export class PlayerService {
       console.log(`🐕 Found ${userPets.length} pets for user ${user.wallet_address}`)
 
       // Sync pets from database to player state
-      PetService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
+      this.petService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
 
       // Convert user data to profile response
       const profile = {
@@ -282,17 +311,22 @@ export class PlayerService {
         lastActiveAt: user.last_active_at || new Date()
       }
 
-      client.send('profile-response', {
-        success: true,
-        profile: profile
-      })
+      client.send(
+        'profile-response',
+        this.createSuccessResponse(
+          {
+            profile: profile
+          },
+          'Profile retrieved successfully'
+        )
+      )
 
       console.log(`✅ Profile sent to ${player.name} with ${userPets.length} pets`)
     } catch (error) {
       console.error(`❌ Error fetching profile from DB for ${player.name}:`, error)
 
       // Fallback to in-memory data if DB query fails
-      const inventorySummary = InventoryService.getInventorySummary(player) // Get wallet address for fallback profile
+      const inventorySummary = InventoryService.getInventorySummary(player)
       let fallbackWallet = player.walletAddress
       if (!fallbackWallet) {
         const sessionWallet = this.getWalletFromSession(sessionId)
@@ -301,37 +335,39 @@ export class PlayerService {
         }
       }
 
-      client.send('profile-response', {
-        success: true,
-        profile: {
-          sessionId: player.sessionId,
-          name: player.name,
-          wallet_address: fallbackWallet,
-          tokens: player.tokens,
-          totalPetsOwned: player.totalPetsOwned,
-          inventory: inventorySummary,
-          pets: [],
-          joinedAt: Date.now(),
-          lastActiveAt: new Date(),
-          error: 'Database temporarily unavailable'
-        }
-      })
+      client.send(
+        'profile-response',
+        this.createSuccessResponse(
+          {
+            profile: {
+              sessionId: player.sessionId,
+              name: player.name,
+              wallet_address: fallbackWallet,
+              tokens: player.tokens,
+              totalPetsOwned: player.totalPetsOwned,
+              inventory: inventorySummary,
+              pets: [],
+              joinedAt: Date.now(),
+              lastActiveAt: new Date(),
+              error: 'Database temporarily unavailable'
+            }
+          },
+          'Profile retrieved with fallback data'
+        )
+      )
     }
   }
 
-  static async handleClaimDailyReward(eventData: EventData) {
+  private async handleClaimDailyReward(eventData: EventData) {
     const { sessionId, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
     if (!player) {
-      client.send('daily-reward-response', {
-        success: false,
-        message: 'Player not found'
-      })
+      client.send('daily-reward-response', this.createErrorResponse('Player not found'))
       return
     }
 
-    console.log(`🎁 [Service] Processing daily reward for ${player.name}`)
+    console.log(`🎁 [PlayerService] Processing daily reward for ${player.name}`)
 
     // Simple daily reward logic (could be enhanced with actual date checking)
     const rewardTokens = 50
@@ -343,15 +379,19 @@ export class PlayerService {
     // Add food items
     InventoryService.addItem(player, 'food', 'apple', 'apple', rewardFood)
 
-    client.send('daily-reward-response', {
-      success: true,
-      message: 'Daily reward claimed!',
-      rewards: {
-        tokens: rewardTokens,
-        items: [{ type: 'food', name: 'apple', quantity: rewardFood }]
-      },
-      newTokenBalance: player.tokens
-    })
+    client.send(
+      'daily-reward-response',
+      this.createSuccessResponse(
+        {
+          rewards: {
+            tokens: rewardTokens,
+            items: [{ type: 'food', name: 'apple', quantity: rewardFood }]
+          },
+          newTokenBalance: player.tokens
+        },
+        'Daily reward claimed!'
+      )
+    )
 
     room.loggingService?.logStateChange('DAILY_REWARD_CLAIMED', {
       playerId: sessionId,
@@ -361,27 +401,28 @@ export class PlayerService {
     })
   }
 
-  static handleUpdateSettings(eventData: EventData) {
+  private handleUpdateSettings(eventData: EventData) {
     const { sessionId, settings, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
     if (!player) {
-      client.send('settings-response', {
-        success: false,
-        message: 'Player not found'
-      })
+      client.send('settings-response', this.createErrorResponse('Player not found'))
       return
     }
 
-    console.log(`⚙️ [Service] Updating settings for ${player.name}:`, settings)
+    console.log(`⚙️ [PlayerService] Updating settings for ${player.name}:`, settings)
 
     // In a real implementation, you'd store settings in player schema or database
     // For now, just acknowledge the update
-    client.send('settings-response', {
-      success: true,
-      message: 'Settings updated successfully',
-      settings: settings as Record<string, unknown>
-    })
+    client.send(
+      'settings-response',
+      this.createSuccessResponse(
+        {
+          settings: settings as Record<string, unknown>
+        },
+        'Settings updated successfully'
+      )
+    )
 
     room.loggingService?.logStateChange('SETTINGS_UPDATED', {
       playerId: sessionId,
@@ -390,26 +431,27 @@ export class PlayerService {
     })
   }
 
-  static handleUpdateTutorial(eventData: EventData) {
+  private handleUpdateTutorial(eventData: EventData) {
     const { sessionId, tutorialData, room, client } = eventData
     const player = room.state.players.get(sessionId)
 
     if (!player) {
-      client.send('tutorial-response', {
-        success: false,
-        message: 'Player not found'
-      })
+      client.send('tutorial-response', this.createErrorResponse('Player not found'))
       return
     }
 
-    console.log(`📚 [Service] Updating tutorial for ${player.name}:`, tutorialData)
+    console.log(`📚 [PlayerService] Updating tutorial for ${player.name}:`, tutorialData)
 
     // In a real implementation, you'd store tutorial progress in player schema or database
-    client.send('tutorial-response', {
-      success: true,
-      message: 'Tutorial progress updated',
-      tutorialData: tutorialData as Record<string, unknown>
-    })
+    client.send(
+      'tutorial-response',
+      this.createSuccessResponse(
+        {
+          tutorialData: tutorialData as Record<string, unknown>
+        },
+        'Tutorial progress updated'
+      )
+    )
 
     room.loggingService?.logStateChange('TUTORIAL_UPDATED', {
       playerId: sessionId,
@@ -417,8 +459,64 @@ export class PlayerService {
       tutorialData: tutorialData as Record<string, unknown>
     })
   }
-  // Fetch user data from MongoDB via Mongoose
-  static async fetchUserData(sessionId: string, addressWallet?: string): Promise<UserData> {
+
+  private handleGetPetsState(eventData: EventData) {
+    const { sessionId, room, client } = eventData
+    const player = room.state.players.get(sessionId)
+
+    if (!player) {
+      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, this.createErrorResponse('Player not found'))
+      return
+    }
+
+    console.log(`🐕 [PlayerService] Sending pets state to ${player.name}`)
+
+    try {
+      // Get player's pets from room state
+      const roomPets: PetState[] = []
+      if (room.state.pets) {
+        room.state.pets.forEach((pet: PetState) => {
+          if (pet.ownerId === sessionId) {
+            roomPets.push(pet)
+          }
+        })
+      }
+
+      // Also get pets from player state as fallback
+      const playerPets = this.petService.getPlayerPets(player)
+
+      // Use room pets as primary source, fallback to player pets
+      const allPets = roomPets.length > 0 ? roomPets : playerPets
+
+      console.log(
+        `📊 Found ${allPets.length} pets for ${player.name} (${roomPets.length} from room, ${playerPets.length} from player)`
+      )
+
+      // Send pets state sync
+      client.send(
+        MESSAGE_COLYSEUS.PET.STATE_SYNC,
+        this.createSuccessResponse(
+          {
+            pets: allPets.map((pet) => this.convertPetToStateFormat(pet)),
+            totalPets: allPets.length
+          },
+          'Pets state retrieved successfully'
+        )
+      )
+
+      console.log(`✅ Pets state sent to ${player.name}: ${allPets.length} pets`)
+    } catch (error: unknown) {
+      console.error(`❌ Error getting pets state for ${player.name}:`, error)
+
+      client.send(
+        MESSAGE_COLYSEUS.PET.STATE_SYNC,
+        this.createErrorResponse(error instanceof Error ? error.message : 'Unknown error')
+      )
+    }
+  }
+
+  // Public methods for other services to use
+  async fetchUserData(sessionId: string, addressWallet?: string): Promise<UserData> {
     try {
       console.log(`🔍 Fetching user data for sessionId: ${sessionId}, wallet: ${addressWallet}`)
 
@@ -445,8 +543,6 @@ export class PlayerService {
 
       if (user) {
         console.log(`✅ User data fetched from DB:`, user.wallet_address)
-        console.log(user)
-        // console.log(`🐕 User has ${user.pets?.length || 0} pets in DB`);
         const petCount = await petModel.countDocuments({ owner_id: user._id }).exec()
 
         return {
@@ -466,7 +562,7 @@ export class PlayerService {
     return this.getDefaultUserData(sessionId)
   }
 
-  private static getDefaultUserData(sessionId: string): UserData {
+  private getDefaultUserData(sessionId: string): UserData {
     return {
       sessionId,
       name: `Player_${sessionId.substring(0, 6)}`,
@@ -476,7 +572,7 @@ export class PlayerService {
     }
   }
 
-  static async createNewPlayer({
+  async createNewPlayer({
     sessionId,
     name,
     addressWallet
@@ -548,7 +644,7 @@ export class PlayerService {
   }
 
   // Sync pets from database to player state during player creation
-  static async syncPlayerPetsFromDatabase(player: Player, walletAddress: string): Promise<void> {
+  async syncPlayerPetsFromDatabase(player: Player, walletAddress: string): Promise<void> {
     try {
       const dbService = DatabaseService.getInstance()
       if (!dbService) {
@@ -576,7 +672,7 @@ export class PlayerService {
 
       if (userPets.length > 0) {
         // Use PetService to sync pets to player state
-        PetService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
+        this.petService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
         console.log(`🔄 Synced ${userPets.length} pets from database for ${player.name}`)
       }
     } catch (error) {
@@ -585,7 +681,7 @@ export class PlayerService {
   }
 
   // Token management methods with database synchronization
-  static async addTokens(player: Player, amount: number): Promise<void> {
+  async addTokens(player: Player, amount: number): Promise<void> {
     player.tokens += amount
     console.log(`💰 Added ${amount} tokens to ${player.name}. New balance: ${player.tokens}`)
 
@@ -593,7 +689,7 @@ export class PlayerService {
     await this.saveTokensToDatabase(player, 'add', amount)
   }
 
-  static async deductTokens(player: Player, amount: number): Promise<boolean> {
+  async deductTokens(player: Player, amount: number): Promise<boolean> {
     if (player.tokens < amount) {
       console.log(`❌ ${player.name} doesn't have enough tokens. Has: ${player.tokens}, needs: ${amount}`)
       return false
@@ -608,7 +704,7 @@ export class PlayerService {
   }
 
   // Helper method to save tokens to database
-  static async saveTokensToDatabase(player: Player, action: string, amount: number): Promise<void> {
+  async saveTokensToDatabase(player: Player, action: string, amount: number): Promise<void> {
     try {
       const dbService = DatabaseService.getInstance()
       if (!dbService) {
@@ -659,7 +755,7 @@ export class PlayerService {
   }
 
   // Helper method to get session-wallet mapping
-  private static getWalletFromSession(sessionId: string): string | null {
+  private getWalletFromSession(sessionId: string): string | null {
     // TODO: Implement proper session-wallet mapping from JWT token or cache
     // Options:
     // 1. Parse JWT token to extract wallet address
@@ -682,64 +778,8 @@ export class PlayerService {
     return null
   }
 
-  static handleGetPetsState(eventData: EventData) {
-    const { sessionId, room, client } = eventData
-    const player = room.state.players.get(sessionId)
-
-    if (!player) {
-      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, {
-        success: false,
-        message: 'Player not found',
-        pets: []
-      })
-      return
-    }
-
-    console.log(`🐕 [Service] Sending pets state to ${player.name}`)
-
-    try {
-      // Get player's pets from room state
-      const roomPets: PetState[] = []
-      if (room.state.pets) {
-        room.state.pets.forEach((pet: PetState) => {
-          if (pet.ownerId === sessionId) {
-            roomPets.push(pet)
-          }
-        })
-      }
-
-      // Also get pets from player state as fallback
-      const playerPets = PetService.getPlayerPets(player)
-
-      // Use room pets as primary source, fallback to player pets
-      const allPets = roomPets.length > 0 ? roomPets : playerPets
-
-      console.log(
-        `📊 Found ${allPets.length} pets for ${player.name} (${roomPets.length} from room, ${playerPets.length} from player)`
-      )
-
-      // Send pets state sync
-      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, {
-        success: true,
-        pets: allPets.map((pet) => this.convertPetToStateFormat(pet)),
-        totalPets: allPets.length
-      })
-
-      console.log(`✅ Pets state sent to ${player.name}: ${allPets.length} pets`)
-    } catch (error: unknown) {
-      console.error(`❌ Error getting pets state for ${player.name}:`, error)
-
-      client.send(MESSAGE_COLYSEUS.PET.STATE_SYNC, {
-        success: false,
-        message: 'Failed to get pets state',
-        pets: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
-    }
-  }
-
   // Helper method to convert DB inventory format to game format
-  private static convertDbInventoryToGameFormat(dbInventory: InventoryItemData[]): Record<string, unknown> {
+  private convertDbInventoryToGameFormat(dbInventory: InventoryItemData[]): Record<string, unknown> {
     const gameInventory: Record<string, unknown> = {}
 
     dbInventory.forEach((item) => {
@@ -756,7 +796,7 @@ export class PlayerService {
   }
 
   // Helper method to convert pet to state format
-  private static convertPetToStateFormat(pet: any): Record<string, unknown> {
+  private convertPetToStateFormat(pet: any): Record<string, unknown> {
     return {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       id: pet.id as string,
@@ -790,7 +830,7 @@ export class PlayerService {
   }
 
   // Save player data to database
-  static async savePlayerData(player: Player): Promise<void> {
+  async savePlayerData(player: Player): Promise<void> {
     try {
       console.log(`💾 Saving player data for ${player.name}...`)
 
@@ -834,7 +874,7 @@ export class PlayerService {
     }
   }
 
-  static async hasEnoughTokens(player: Player, amount: number): Promise<boolean> {
+  async hasEnoughTokens(player: Player, amount: number): Promise<boolean> {
     try {
       const dbService = DatabaseService.getInstance()
 

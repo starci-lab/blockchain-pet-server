@@ -4,6 +4,10 @@ import { GameService } from 'src/game/game.service'
 import { DatabaseService } from './services/DatabaseService'
 import { FoodEmitterModule } from './emitter/food/food-emitter.module'
 import { FoodHandlerModule } from './handlers/food/food-handler.module'
+import { PlayerEmitterModule } from './emitter/player/player-emitter.module'
+import { PlayerHandlerModule } from './handlers/player/player-handler.module'
+import { PetEmitterModule } from './emitter/pet/pet-emitter.module'
+import { PetHandlerModule } from './handlers/pet/pet-handler.module'
 import { User, UserSchema } from 'src/api/user/schemas/user.schema'
 import { Pet, PetSchema } from 'src/api/pet/schemas/pet.schema'
 import { PetType, PetTypeSchema } from 'src/api/pet/schemas/pet-type.schema'
@@ -14,6 +18,10 @@ import { Poop, PoopSchema } from 'src/api/pet/schemas/poop.schema'
   imports: [
     FoodEmitterModule,
     FoodHandlerModule,
+    PlayerEmitterModule,
+    PlayerHandlerModule,
+    PetEmitterModule,
+    PetHandlerModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Pet.name, schema: PetSchema },
@@ -23,6 +31,15 @@ import { Poop, PoopSchema } from 'src/api/pet/schemas/poop.schema'
     ])
   ],
   providers: [GameService, DatabaseService],
-  exports: [GameService, DatabaseService, FoodEmitterModule, FoodHandlerModule]
+  exports: [
+    GameService,
+    DatabaseService,
+    FoodEmitterModule,
+    FoodHandlerModule,
+    PlayerEmitterModule,
+    PlayerHandlerModule,
+    PetEmitterModule,
+    PetHandlerModule
+  ]
 })
 export class GameModule {}
