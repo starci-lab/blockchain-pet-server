@@ -893,6 +893,22 @@ export class PlayerService {
       return false
     }
 
+    // Update player's in-memory tokens first
+    player.tokens -= amount
+    console.log(`💰 Deducted ${amount} tokens from ${player.name}. New balance: ${player.tokens}`)
+
+    // Save to database with session
+    await this.saveTokensToDatabaseWithSession(player, 'deduct', amount, session)
+    return true
+  }
+
+  // Helper method to save tokens to database with session
+  async saveTokensToDatabaseWithSession(
+    player: Player,
+    action: string,
+    amount: number,
+    session: ClientSession
+  ): Promise<void> {
     try {
       // Use player.walletAddress first, fallback to getWalletFromSession
       let walletAddress = player.walletAddress
@@ -904,8 +920,10 @@ export class PlayerService {
       }
 
       if (!walletAddress) {
-        console.warn(`No wallet address found for player ${player.name}, skipping token deduction`)
-        return false
+        console.warn(
+          `No wallet address found for player ${player.name} (session: ${player.sessionId}), skipping token save`
+        )
+        return
       }
 
       // Update user with new token balance using session
@@ -913,29 +931,22 @@ export class PlayerService {
         .findOneAndUpdate(
           { wallet_address: walletAddress.toLowerCase() },
           {
-            $inc: { token_nom: -amount },
+            token_nom: player.tokens,
             last_active_at: new Date()
           },
-          {
-            upsert: false,
-            new: true,
-            session // Use transaction session
-          }
+          { upsert: false, new: true, session }
         )
         .exec()
 
       if (updateResult) {
-        // Update player's in-memory tokens
-        player.tokens -= amount
-        console.log(`💰 Deducted ${amount} tokens from ${player.name}. New balance: ${player.tokens}`)
-        return true
+        console.log(
+          `💾 Tokens ${action}ed: ${amount}. Saved ${player.tokens} tokens to DB for ${player.name} (wallet: ${walletAddress})`
+        )
       } else {
-        console.warn(`User not found in DB for wallet ${walletAddress}, tokens not deducted`)
-        return false
+        console.warn(`⚠️ User not found in DB for wallet ${walletAddress}, tokens not saved`)
       }
     } catch (error) {
-      console.error(`❌ Failed to deduct tokens from DB for ${player.name}:`, error)
-      return false
+      console.error(`❌ Failed to save tokens to DB for ${player.name}:`, error)
     }
   }
 }

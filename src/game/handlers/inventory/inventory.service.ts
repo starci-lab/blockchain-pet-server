@@ -149,8 +149,8 @@ export class InventoryService {
 
       // Use transaction for purchase operation
       const result = await this.withTransaction(async (session) => {
-        //check store item in database
         const storeItem = await this.getStoreItem(itemId)
+        //check store item in database
 
         if (!storeItem) {
           throw new Error(`Store item ${itemId} not found`)
@@ -164,8 +164,8 @@ export class InventoryService {
           throw new Error('Not enough tokens')
         }
 
-        //deduct tokens from player (with session)
         if (!this.playerService) {
+          //deduct tokens from player (with session)
           throw new Error('PlayerService not available')
         }
         const tokenDeducted = await this.playerService.deductTokensWithSession(player, price, session)
