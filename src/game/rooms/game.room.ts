@@ -1,17 +1,15 @@
 import { Room, Client } from 'colyseus'
 import { GameRoomState, Player, Pet } from '../schemas/game-room.schema'
 import { MapSchema } from '@colyseus/schema'
-// Emitters: Only emit events, no business logic
-
-// Services: Handle events with business logic
 import { ResponseBuilder } from '../utils/ResponseBuilder'
 import { GAME_CONFIG } from '../config/GameConfig'
 import { PetEmitters } from 'src/game/emitter/PetEmitters'
-import { FoodEmitters } from 'src/game/emitter/FoodEmitters'
+import { FoodEmitters } from 'src/game/emitter/food'
 import { PlayerEmitter } from 'src/game/emitter/player'
 import { LoggingService } from 'src/game/handlers/LoggingService'
-import { PlayerService } from 'src/game/handlers/PlayerService'
-import { PetService } from 'src/game/handlers/PetService'
+import { PlayerService } from 'src/game/handlers/player/player.service'
+import { PetService } from 'src/game/handlers/pet/pet.service'
+import { GameService } from '../game.service'
 import { RoomOptions } from '../types/RoomTypes'
 import { GamePlayer } from '../types/GameTypes'
 import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
@@ -19,10 +17,19 @@ import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
 export class GameRoom extends Room<GameRoomState> {
   maxClients = GAME_CONFIG.ROOM.MAX_CLIENTS // Single player only
   public loggingService: LoggingService
+  public foodEmitters: FoodEmitters
+  public playerService: PlayerService
+  public petService: PetService
   private lastPlayerSave: number = 0
 
   onCreate(options: RoomOptions) {
     this.loggingService = new LoggingService(this)
+    this.foodEmitters = new FoodEmitters()
+
+    // Get services from GameService static methods
+    this.playerService = GameService.getPlayerService()
+    this.petService = GameService.getPetService()
+
     this.initializeRoom(options)
     this.setupMessageHandlers()
     this.startGameLoop()
@@ -57,9 +64,9 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage(MESSAGE_COLYSEUS.PET.CREATE_POOP, PetEmitters.createPoop(this))
 
     // Food emitters (emit events to InventoryService)
-    this.onMessage(MESSAGE_COLYSEUS.PET.BUY_FOOD, FoodEmitters.purchaseItem(this))
-    this.onMessage('get_store_catalog', FoodEmitters.getStoreCatalog(this))
-    this.onMessage('get_inventory', FoodEmitters.getInventory(this))
+    this.onMessage(MESSAGE_COLYSEUS.PET.BUY_FOOD, this.foodEmitters.purchaseItem(this))
+    this.onMessage('get_store_catalog', this.foodEmitters.getStoreCatalog(this))
+    this.onMessage('get_inventory', this.foodEmitters.getInventory(this))
 
     // Player emitters (emit events to PlayerService)
     this.onMessage('request_game_config', PlayerEmitter.requestGameConfig(this))
@@ -76,7 +83,7 @@ export class GameRoom extends Room<GameRoomState> {
   private updateGameLogic() {
     // Update pet stats over time for each player (hunger, happiness, cleanliness decay)
     this.state.players.forEach((player) => {
-      PetService.updatePlayerPetStats(player)
+      this.petService.updatePlayerPetStats(player)
     })
 
     // Periodically save player data (every 5 minutes)
@@ -97,7 +104,7 @@ export class GameRoom extends Room<GameRoomState> {
     const savePromises: Promise<void>[] = []
 
     this.state.players.forEach((player) => {
-      savePromises.push(PlayerService.savePlayerData(player))
+      savePromises.push(this.playerService.savePlayerData(player))
       savedCount++
     })
 
@@ -116,7 +123,7 @@ export class GameRoom extends Room<GameRoomState> {
 
     try {
       // Create new player using async service to fetch real user data
-      const player = await PlayerService.createNewPlayer({
+      const player = await this.playerService.createNewPlayer({
         sessionId: client.sessionId,
         name: options?.name,
         addressWallet: options?.addressWallet || ''
@@ -155,7 +162,7 @@ export class GameRoom extends Room<GameRoomState> {
   private async handleNewPlayerPets(client: Client, player: Player) {
     console.log('🐾 Handling new player pets for:', player.name)
     try {
-      const petsFromDb = await PetService.fetchPetsFromDatabase(player.walletAddress)
+      const petsFromDb = await this.petService.fetchPetsFromDatabase(player.walletAddress)
       console.log(`🐾 Found ${petsFromDb.length} pets for ${player.name} in DB`)
       if (!player.pets) {
         player.pets = new MapSchema<Pet>()
@@ -188,7 +195,7 @@ export class GameRoom extends Room<GameRoomState> {
     const player = this.state.players.get(client.sessionId) as GamePlayer
     if (player) {
       // Save player data before removing
-      PlayerService.savePlayerData(player).catch((error) => {
+      this.playerService.savePlayerData(player).catch((error) => {
         console.error(`❌ Failed to save player data on leave:`, error)
       })
 

@@ -1,77 +1,130 @@
-import { DatabaseService } from '../services/DatabaseService'
-import { Pet, PetPoop, Player } from '../schemas/game-room.schema'
-import { GAME_CONFIG } from '../config/GameConfig'
+import { Injectable } from '@nestjs/common'
+import { InjectConnection } from '@nestjs/mongoose'
+import { Model, Connection } from 'mongoose'
+import { Pet, PetPoop, Player } from '../../schemas/game-room.schema'
+import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
-import { ResponseBuilder } from '../utils/ResponseBuilder'
-import { InventoryService } from './InventoryService'
+import { ResponseBuilder } from '../../utils/ResponseBuilder'
+import { InventoryService } from '../inventory/inventory.service'
 import { MapSchema } from '@colyseus/schema'
-import { PetStatus } from 'src/api/pet/schemas/pet.schema'
-import { PetEventData, DBPet, PoopEvenData } from '../types/GameTypes'
+import { PetStatus, PetDocument } from 'src/api/pet/schemas/pet.schema'
+import { PetEventData, DBPet, PoopEvenData } from '../../types/GameTypes'
 import { Types } from 'mongoose'
-import { PetStats as GamePetStats } from '../types/GameTypes'
-import { EMITTER_EVENT_BUS } from '../constants/message-event-bus'
-import { MESSAGE_COLYSEUS } from '../constants/message-colyseus'
-import { PetType } from 'src/api/pet/schemas/pet-type.schema'
+import { PetStats as GamePetStats } from '../../types/GameTypes'
+import { EMITTER_EVENT_BUS } from '../../constants/message-event-bus'
+import { MESSAGE_COLYSEUS } from '../../constants/message-colyseus'
+import { PetType, PetTypeDocument } from 'src/api/pet/schemas/pet-type.schema'
 import { Poop, PoopDocument } from 'src/api/pet/schemas/poop.schema'
+import { User, UserDocument } from 'src/api/user/schemas/user.schema'
+import { StoreItem, StoreItemDocument } from 'src/api/store-item/schemas/store-item.schema'
 
+@Injectable()
 export class PetService {
-  // Initialize event listeners
-  static initializeEventListeners() {
+  constructor(@InjectConnection() private connection: Connection) {
+    this.setupEventListeners()
+  }
+
+  // Lazy load models - chỉ tạo khi cần dùng
+  private get petModel(): Model<PetDocument> {
+    return this.connection.model<PetDocument>(Pet.name)
+  }
+
+  private get petTypeModel(): Model<PetTypeDocument> {
+    return this.connection.model<PetTypeDocument>(PetType.name)
+  }
+
+  private get poopModel(): Model<PoopDocument> {
+    return this.connection.model<PoopDocument>(Poop.name)
+  }
+
+  private get userModel(): Model<UserDocument> {
+    return this.connection.model<UserDocument>(User.name)
+  }
+
+  private get storeItemModel(): Model<StoreItemDocument> {
+    return this.connection.model<StoreItemDocument>(StoreItem.name)
+  }
+
+  private setupEventListeners() {
     console.log('🎧 Initializing PetService event listeners...')
 
     // Listen for pet creation events
     eventBus.on(EMITTER_EVENT_BUS.PET.BUY_PET, (eventData: PetEventData) => {
-      this.handleBuyPet(eventData).catch(console.error)
+      void this.handleBuyPet(eventData)
     })
 
     // Listen for pet removal events
-    eventBus.on(EMITTER_EVENT_BUS.PET.REMOVE_PET, this.handleRemovePet.bind(this))
+    eventBus.on(EMITTER_EVENT_BUS.PET.REMOVE_PET, (eventData: PetEventData) => this.handleRemovePet(eventData))
 
     // Listen for pet feeding events
-    eventBus.on(EMITTER_EVENT_BUS.PET.FEED_PET, this.handleFeedPet.bind(this))
+    eventBus.on(EMITTER_EVENT_BUS.PET.FEED_PET, (eventData: PetEventData) => this.handleFeedPet(eventData))
 
     // Listen for pet playing events
-    eventBus.on(EMITTER_EVENT_BUS.PET.PLAY_WITH_PET, this.handlePlayWithPet.bind(this))
+    eventBus.on(EMITTER_EVENT_BUS.PET.PLAY_WITH_PET, (eventData: PetEventData) => this.handlePlayWithPet(eventData))
 
     // Listen for pet cleaning events
-    eventBus.on('pet.clean', this.handleCleanPet.bind(this))
+    eventBus.on('pet.clean', (eventData: PetEventData) => this.handleCleanPet(eventData))
 
-    // Listen for pet eated food events - wrapped to handle async
+    // Listen for pet eated food events
     eventBus.on(EMITTER_EVENT_BUS.PET.EATED_FOOD, (eventData: PetEventData) => {
-      this.handleEatedFood(eventData).catch(console.error)
+      void this.handleEatedFood(eventData)
     })
 
-    // Listen for pet cleaned events - wrapped to handle async
+    // Listen for pet cleaned events
     eventBus.on(EMITTER_EVENT_BUS.PET.CLEANED_PET, (eventData: PetEventData) => {
-      this.handleCleanedPet(eventData).catch(console.error)
+      void this.handleCleanedPet(eventData)
     })
 
-    // Listen for pet played events - wrapped to handle async
+    // Listen for pet played events
     eventBus.on(EMITTER_EVENT_BUS.PET.PLAYED_PET, (eventData: PetEventData) => {
-      this.handlePlayedPet(eventData).catch(console.error)
+      void this.handlePlayedPet(eventData)
     })
 
     // Listen for pet create poop events
     eventBus.on(EMITTER_EVENT_BUS.PET.CREATE_POOP, (eventData: PoopEvenData) => {
-      this.handleCreatePoop(eventData).catch(console.error)
+      void this.handleCreatePoop(eventData)
     })
 
     console.log('✅ PetService event listeners initialized')
   }
 
+  // Static method for initializing event listeners (for backward compatibility)
+  static initializeEventListeners() {
+    console.log('🎧 Initializing PetService event listeners...')
+
+    // For now, we'll just log that the service is initialized
+    // The actual event handling will be done by the injected instances
+    console.log('✅ PetService event listeners initialized (handled by injected instances)')
+  }
+
+  // Helper methods for responses
+  private createSuccessResponse(data: Record<string, any>, message: string) {
+    return {
+      success: true,
+      data,
+      message,
+      timestamp: Date.now()
+    }
+  }
+
+  private createErrorResponse(message: string) {
+    return {
+      success: false,
+      error: message,
+      timestamp: Date.now()
+    }
+  }
+
   // TODO: fetch pets from database
-  static async fetchPetsFromDatabase(walletAddress: string): Promise<Pet[]> {
+  async fetchPetsFromDatabase(walletAddress: string): Promise<Pet[]> {
     if (!walletAddress) return []
     try {
-      const dbService = DatabaseService.getInstance()
-      if (!dbService) throw new Error('Database service not initialized')
-      const userModel = dbService.getUserModel()
-      const petModel = dbService.getPetModel()
+      // Use injected models directly
       // Find user by wallet address
-      const user = await userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
+      const user = await this.userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await petModel.find({ owner_id: user._id }).populate('type', 'poops').exec()
+      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('type', 'poops').exec()
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
@@ -109,17 +162,11 @@ export class PetService {
   }
 
   // Event handlers
-  /**
-   * Handle buy pet event
-   * @param eventData PetEventData
-   * @returns Promise<void>
-   * @throws Error
-   */
-  private static isValidPetId(petId: string | undefined): petId is string {
+  private isValidPetId(petId: string | undefined): petId is string {
     return typeof petId === 'string' && petId.length > 0
   }
 
-  static async handleBuyPet(eventData: PetEventData) {
+  private async handleBuyPet(eventData: PetEventData) {
     const { sessionId, petType, room, client, isBuyPet } = eventData
     const player = room.state.players.get(sessionId)
 
@@ -129,11 +176,7 @@ export class PetService {
 
     // Check if petType is valid
     if (!petType) {
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'buy_pet',
-        message: 'Pet type not found'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Pet type not found'))
       return
     }
 
@@ -141,12 +184,7 @@ export class PetService {
       // Logic buy pet
       const PET_PRICE = 50
       if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'buy_pet',
-          message: 'Not enough tokens',
-          currentTokens: player.tokens
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Not enough tokens'))
         return
       }
       try {
@@ -154,19 +192,18 @@ export class PetService {
         player.tokens -= PET_PRICE
 
         // Lưu token mới vào DB
-        const dbService = DatabaseService.getInstance()
-        const userModel = dbService.getUserModel()
-        await userModel.updateOne(
+        // Use injected userModel directly
+        await this.userModel.updateOne(
           { wallet_address: player.walletAddress.toLowerCase() },
           { $inc: { token_nom: -PET_PRICE } }
         )
         // Tạo pet mới trong DB
-        const petModel = dbService.getPetModel()
+        // Use injected petModel directly
         //TODO: find by type pet ID
-        const user = await userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
+        const user = await this.userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
         if (!user) throw new Error('User not found in DB')
 
-        const createdPetDoc = await petModel.create({
+        const createdPetDoc = await this.petModel.create({
           owner_id: user._id,
           type: '6869e7a0bae4412d2195d11c',
           stats: {
@@ -193,13 +230,17 @@ export class PetService {
         player.totalPetsOwned = petsFromDb.length
 
         // Gửi response về client
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: true,
-          action: 'buy_pet',
-          message: 'Mua pet thành công!',
-          currentTokens: player.tokens,
-          pets: petsFromDb
-        })
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          this.createSuccessResponse(
+            {
+              currentTokens: player.tokens,
+              pets: petsFromDb
+            },
+            'Mua pet thành công!'
+          )
+        )
+
         room.loggingService.logStateChange('PET_BOUGHT', {
           petType,
           ownerId: sessionId,
@@ -209,18 +250,13 @@ export class PetService {
         console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
       } catch (err) {
         console.error('❌ Lỗi khi mua pet:', err)
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'buy_pet',
-          message: 'Lỗi khi mua pet',
-          currentTokens: player.tokens
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Lỗi khi mua pet'))
       }
       return
     }
 
     // Legacy: tạo pet local (không dùng nữa, chỉ fallback nếu cần)
-    console.log(`🐕 [Service] Creating pet ${petId} for ${player.name}`)
+    console.log(`🐕 [PetService] Creating pet ${petId} for ${player.name}`)
 
     const pet = this.createPet(petId, sessionId, petType)
 
@@ -253,7 +289,7 @@ export class PetService {
     console.log(`✅ Pet ${petId} created for ${player.name}. Total pets: ${player.totalPetsOwned}`)
   }
 
-  static handleRemovePet(eventData: PetEventData) {
+  private handleRemovePet(eventData: PetEventData) {
     const { sessionId, petId, room, client } = eventData
     const player = room.state.players.get(sessionId)
     if (!player || !petId) {
@@ -267,7 +303,7 @@ export class PetService {
       return
     }
 
-    console.log(`🗑️ [Service] Removing pet ${petId} for ${player.name}`)
+    console.log(`🗑️ [PetService] Removing pet ${petId} for ${player.name}`)
 
     // Remove pet from room state
     room.state.pets.delete(petId)
@@ -296,7 +332,7 @@ export class PetService {
     console.log(`✅ Pet ${petId} removed for ${player.name}. Remaining pets: ${player.totalPetsOwned}`)
   }
 
-  static handleFeedPet(eventData: PetEventData) {
+  private handleFeedPet(eventData: PetEventData) {
     const { sessionId, petId, foodType, room, client } = eventData
     if (!this.isValidPetId(petId) || !foodType) return
 
@@ -305,11 +341,7 @@ export class PetService {
 
     const pet = room.state.pets.get(petId)
     if (!pet || pet.ownerId !== sessionId) {
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'feed',
-        message: 'Cannot feed this pet'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot feed this pet'))
       return
     }
 
@@ -318,15 +350,11 @@ export class PetService {
 
     if (foodQuantity <= 0) {
       console.log(`❌ ${player.name} doesn't have ${foodType} to feed pet`)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'feed',
-        message: `You don't have any ${foodType}`
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse(`You don't have any ${foodType}`))
       return
     }
 
-    console.log(`🍔 [Service] ${player.name} feeding pet ${petId} with ${foodType}`)
+    console.log(`🍔 [PetService] ${player.name} feeding pet ${petId} with ${foodType}`)
 
     // Use food from inventory
     InventoryService.useItem(player, 'food', foodType, 1)
@@ -335,13 +363,16 @@ export class PetService {
     this.feedPet(pet, 25) // Food restores 25 hunger points
 
     // Send success response with updated stats
-    client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-      success: true,
-      action: 'feed',
-      message: `Fed ${foodType} to your pet`,
-      petStats: this.getPetStatsSummary(pet),
-      inventory: InventoryService.getInventorySummary(player)
-    })
+    client.send(
+      MESSAGE_COLYSEUS.ACTION.RESPONSE,
+      this.createSuccessResponse(
+        {
+          petStats: this.getPetStatsSummary(pet),
+          inventory: InventoryService.getInventorySummary(player)
+        },
+        `Fed ${foodType} to your pet`
+      )
+    )
 
     // Also sync updated pets state to client
     console.log('🔄 Sending pets-state-sync after feed pet...')
@@ -361,7 +392,7 @@ export class PetService {
     console.log(`✅ ${player.name} fed pet ${petId}. New stats: hunger=${pet.hunger}, happiness=${pet.happiness}`)
   }
 
-  static handlePlayWithPet(eventData: PetEventData) {
+  private handlePlayWithPet(eventData: PetEventData) {
     const { sessionId, petId, room, client } = eventData
     const player = room.state.players.get(sessionId)
     if (!petId) {
@@ -372,26 +403,25 @@ export class PetService {
 
     if (!player || !pet || pet.ownerId !== sessionId) {
       console.log(`❌ Play with pet failed - invalid player/pet or ownership`)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'play',
-        message: 'Cannot play with this pet'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot play with this pet'))
       return
     }
 
-    console.log(`🎾 [Service] ${player.name} playing with pet ${petId}`)
+    console.log(`🎾 [PetService] ${player.name} playing with pet ${petId}`)
 
     // Play with the pet (increase happiness)
     this.playWithPet(pet, 20)
 
     // Send success response with updated stats
-    client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-      success: true,
-      action: 'play',
-      message: 'Played with your pet',
-      petStats: this.getPetStatsSummary(pet)
-    })
+    client.send(
+      MESSAGE_COLYSEUS.ACTION.RESPONSE,
+      this.createSuccessResponse(
+        {
+          petStats: this.getPetStatsSummary(pet)
+        },
+        'Played with your pet'
+      )
+    )
 
     // Also sync updated pets state to client
     const playerPets = this.getPlayerPets(player)
@@ -407,7 +437,7 @@ export class PetService {
     console.log(`✅ ${player.name} played with pet ${petId}. New happiness: ${pet.happiness}`)
   }
 
-  static handleCleanPet(eventData: PetEventData) {
+  private handleCleanPet(eventData: PetEventData) {
     const { sessionId, petId, room, client } = eventData
     const player = room.state.players.get(sessionId)
     if (!petId) {
@@ -418,26 +448,25 @@ export class PetService {
 
     if (!player || !pet || pet.ownerId !== sessionId) {
       console.log(`❌ Clean pet failed - invalid player/pet or ownership`)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'clean',
-        message: 'Cannot clean this pet'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot clean this pet'))
       return
     }
 
-    console.log(`🧼 [Service] ${player.name} cleaning pet ${petId}`)
+    console.log(`🧼 [PetService] ${player.name} cleaning pet ${petId}`)
 
     // Clean the pet (increase cleanliness)
     this.cleanPet(pet, 30)
 
     // Send success response with updated stats
-    client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-      success: true,
-      action: 'clean',
-      message: 'Cleaned your pet',
-      petStats: this.getPetStatsSummary(pet)
-    })
+    client.send(
+      MESSAGE_COLYSEUS.ACTION.RESPONSE,
+      this.createSuccessResponse(
+        {
+          petStats: this.getPetStatsSummary(pet)
+        },
+        'Cleaned your pet'
+      )
+    )
 
     // Also sync updated pets state to client
     const playerPets = this.getPlayerPets(player)
@@ -456,136 +485,7 @@ export class PetService {
     )
   }
 
-  // Core pet creation and management methods
-  static createStarterPet(ownerId: string): Pet {
-    const starterPetId = `starter_${ownerId}_${Date.now()}`
-
-    const pet = new Pet()
-    pet.id = starterPetId
-    pet.ownerId = ownerId
-    pet.petType = GAME_CONFIG.PETS.DEFAULT_TYPE
-    pet.hunger = 100 // Full hunger
-    pet.happiness = 100 // Full happiness
-    pet.cleanliness = 100 // Full cleanliness
-    pet.lastUpdated = Date.now()
-
-    return pet
-  }
-
-  static createPet(petId: string, ownerId: string, petType?: string): Pet {
-    const pet = new Pet()
-    pet.id = petId
-    pet.ownerId = ownerId
-    pet.petType = petType || GAME_CONFIG.PETS.DEFAULT_TYPE
-    pet.hunger = 100
-    pet.happiness = 100
-    pet.cleanliness = 100
-    pet.lastUpdated = Date.now()
-
-    return pet
-  }
-
-  // Update pet stats over time for a specific player (hunger, happiness, cleanliness decay)
-  static updatePlayerPetStats(player: Player): void {
-    if (!player.pets) return
-
-    const now = Date.now()
-    const updateInterval = 60000 // 1 minute
-
-    player.pets.forEach((pet: Pet) => {
-      const timeSinceLastUpdate = now - pet.lastUpdated
-
-      if (timeSinceLastUpdate >= updateInterval) {
-        const hoursElapsed = timeSinceLastUpdate / (1000 * 60 * 60)
-
-        // Decay rates per hour
-        const hungerDecay = 5 // Lose 5 hunger per hour
-        const happinessDecay = 3 // Lose 3 happiness per hour
-        const cleanlinessDecay = 2 // Lose 2 cleanliness per hour
-
-        // Apply decay
-        pet.hunger = Math.max(0, pet.hunger - hungerDecay * hoursElapsed)
-        pet.happiness = Math.max(0, pet.happiness - happinessDecay * hoursElapsed)
-        pet.cleanliness = Math.max(0, pet.cleanliness - cleanlinessDecay * hoursElapsed)
-
-        pet.lastUpdated = now
-
-        console.log(
-          `📊 Pet ${pet.id} stats updated: hunger=${pet.hunger.toFixed(1)}, happiness=${pet.happiness.toFixed(1)}, cleanliness=${pet.cleanliness.toFixed(1)}`
-        )
-      }
-    })
-  }
-
-  // Update pet stats over time for all pets in room (legacy method)
-  static updatePetStats(pets: MapSchema<Pet>): void {
-    const now = Date.now()
-    const updateInterval = 60000 // 1 minute
-
-    pets.forEach((pet: Pet) => {
-      const timeSinceLastUpdate = now - pet.lastUpdated
-
-      if (timeSinceLastUpdate >= updateInterval) {
-        const hoursElapsed = timeSinceLastUpdate / (1000 * 60 * 60)
-
-        // Decay rates per hour
-        const hungerDecay = 5 // Lose 5 hunger per hour
-        const happinessDecay = 3 // Lose 3 happiness per hour
-        const cleanlinessDecay = 2 // Lose 2 cleanliness per hour
-
-        // Apply decay
-        pet.hunger = Math.max(0, pet.hunger - hungerDecay * hoursElapsed)
-        pet.happiness = Math.max(0, pet.happiness - happinessDecay * hoursElapsed)
-        pet.cleanliness = Math.max(0, pet.cleanliness - cleanlinessDecay * hoursElapsed)
-
-        pet.lastUpdated = now
-
-        console.log(
-          `📊 Pet ${pet.id} stats updated: hunger=${pet.hunger.toFixed(1)}, happiness=${pet.happiness.toFixed(1)}, cleanliness=${pet.cleanliness.toFixed(1)}`
-        )
-      }
-    })
-  }
-
-  // Feed pet to increase hunger and happiness
-  static feedPet(pet: Pet, foodValue: number = 20): void {
-    pet.hunger = Math.min(100, pet.hunger + foodValue)
-    pet.happiness = Math.min(100, pet.happiness + foodValue * 0.5) // Feeding also makes pet happy
-    pet.lastUpdated = Date.now()
-
-    console.log(`🍔 Pet ${pet.id} fed. Hunger: ${pet.hunger}, Happiness: ${pet.happiness}`)
-  }
-
-  // Play with pet to increase happiness
-  static playWithPet(pet: Pet, playValue: number = 15): void {
-    pet.happiness = Math.min(100, pet.happiness + playValue)
-    pet.lastUpdated = Date.now()
-
-    console.log(`🎾 Played with pet ${pet.id}. Happiness: ${pet.happiness}`)
-  }
-
-  // Clean pet to increase cleanliness and happiness
-  static cleanPet(pet: Pet, cleanValue: number = 25): void {
-    pet.cleanliness = Math.min(100, pet.cleanliness + cleanValue)
-    pet.happiness = Math.min(100, pet.happiness + cleanValue * 0.3) // Cleaning makes pet slightly happy
-    pet.lastUpdated = Date.now()
-
-    console.log(`🧼 Pet ${pet.id} cleaned. Cleanliness: ${pet.cleanliness}, Happiness: ${pet.happiness}`)
-  }
-
-  // Get pets owned by specific player from player state
-  static getPlayerPets(player: Player): Pet[] {
-    const playerPets: Pet[] = []
-    if (player && player.pets) {
-      player.pets.forEach((pet: Pet) => {
-        playerPets.push(pet)
-      })
-    }
-    return playerPets
-  }
-
-  // TODO: New code
-  static async handleEatedFood(eventData: PetEventData) {
+  private async handleEatedFood(eventData: PetEventData) {
     const { sessionId, petId, room, client, hungerLevel } = eventData
     try {
       const player = room.state.players.get(sessionId)
@@ -598,21 +498,13 @@ export class PetService {
       // walletAddress is used as ownerId in Pet schema
       if (!player || !pet || pet.ownerId !== player.walletAddress) {
         console.log(`❌ Eated food failed - invalid player/pet or ownership`)
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'eated_food',
-          message: 'Cannot eated food'
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot eated food'))
         return
       }
 
       // Check if pet hunger is allowed to eat
       if (Number(pet.hunger) > Number(GAME_CONFIG.PETS.HUNGER_ALLOW_EAT)) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'eated_food',
-          message: 'Cannot eated: pet hunger is full'
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot eated: pet hunger is full'))
         return
       }
 
@@ -642,10 +534,9 @@ export class PetService {
       }
 
       // Update DB
-      const dbService = DatabaseService.getInstance()
-      const petModel = dbService.getPetModel()
+      // Use injected petModel directly
 
-      const updatedPet = await petModel.findByIdAndUpdate(
+      const updatedPet = await this.petModel.findByIdAndUpdate(
         {
           _id: petId,
           status: PetStatus.Active
@@ -658,34 +549,24 @@ export class PetService {
       )
 
       if (!updatedPet) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'eated_food',
-          message: 'Cannot eated: pet not found or not active'
-        })
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          this.createErrorResponse('Cannot eated: pet not found or not active')
+        )
         return
       }
 
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: true,
-        action: 'eated_food',
-        message: 'Eated food'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createSuccessResponse({}, 'Eated food'))
 
       return
     } catch (error) {
       console.error('❌ pet eated food error:', error)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'eated_food',
-        message: 'pet eated food error'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('pet eated food error'))
     }
     return
   }
 
-  // TODO: New code
-  static async handleCleanedPet(eventData: PetEventData) {
+  private async handleCleanedPet(eventData: PetEventData) {
     const { sessionId, petId, room, client, cleanlinessLevel, poopId } = eventData
     try {
       const player = room.state.players.get(sessionId)
@@ -698,21 +579,16 @@ export class PetService {
       // walletAddress is used as ownerId in Pet schema
       if (!player || !pet || pet.ownerId !== player.walletAddress) {
         console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`)
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'cleaned_pet',
-          message: 'Cannot cleaned pet'
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot cleaned pet'))
         return
       }
 
       // Check if pet cleanliness is allowed to clean
       if (pet.cleanliness > GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'cleaned_pet',
-          message: 'Cannot cleaned: pet cleanliness is full'
-        })
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          this.createErrorResponse('Cannot cleaned: pet cleanliness is full')
+        )
         return
       }
 
@@ -746,12 +622,10 @@ export class PetService {
       }
 
       // Update DB
-      const dbService = DatabaseService.getInstance()
-      const petModel = dbService.getPetModel()
-      const poopModel = dbService.getPoopModel()
+      // Use injected models directly
 
       const [updatedPet, deletedPoop] = await Promise.all([
-        petModel.findByIdAndUpdate(
+        this.petModel.findByIdAndUpdate(
           {
             _id: petId,
             status: PetStatus.Active
@@ -765,39 +639,32 @@ export class PetService {
             new: true
           }
         ),
-        poopModel.findByIdAndDelete({
+        this.poopModel.findByIdAndDelete({
           _id: poopId as string
         })
       ])
 
       if (!updatedPet || !deletedPoop) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'cleaned_pet',
-          message: 'Cannot cleaned: pet not found or not active'
-        })
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          this.createErrorResponse('Cannot cleaned: pet not found or not active')
+        )
         return
       }
 
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: true,
-        action: 'cleaned_pet',
-        message: 'Cleaned pet'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createSuccessResponse({}, 'Cleaned pet'))
 
       return
     } catch (error) {
       console.error('❌ pet cleaned error:', error)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'cleaned_pet',
-        message: 'Cannot cleaned: pet not found or not active'
-      })
+      client.send(
+        MESSAGE_COLYSEUS.ACTION.RESPONSE,
+        this.createErrorResponse('Cannot cleaned: pet not found or not active')
+      )
     }
   }
 
-  // TODO: New code
-  static async handlePlayedPet(eventData: PetEventData) {
+  private async handlePlayedPet(eventData: PetEventData) {
     const { sessionId, petId, room, client, happinessLevel } = eventData
     try {
       const player = room.state.players.get(sessionId)
@@ -809,21 +676,13 @@ export class PetService {
 
       // walletAddress is used as ownerId in Pet schema
       if (!player || !pet || pet.ownerId !== player.walletAddress) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'played_pet',
-          message: 'Cannot play with pet'
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot play with pet'))
         return
       }
 
       // Check if pet is allowed to play
       if (Number(pet.happiness) > Number(GAME_CONFIG.PETS.HAPPINESS_ALLOW_PLAY)) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'played_pet',
-          message: 'Cannot played: pet happiness is full'
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot played: pet happiness is full'))
         return
       }
 
@@ -852,10 +711,9 @@ export class PetService {
       }
 
       // Cập nhật DB
-      const dbService = DatabaseService.getInstance()
-      const petModel = dbService.getPetModel()
+      // Use injected petModel directly
 
-      const updatedPet = await petModel.findByIdAndUpdate(
+      const updatedPet = await this.petModel.findByIdAndUpdate(
         {
           _id: petId,
           status: PetStatus.Active
@@ -868,34 +726,27 @@ export class PetService {
       )
 
       if (!updatedPet) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'played_pet',
-          message: 'Cannot played: pet not found or not active'
-        })
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          this.createErrorResponse('Cannot played: pet not found or not active')
+        )
         return
       }
 
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: true,
-        action: 'played_pet',
-        message: 'Played pet'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createSuccessResponse({}, 'Played pet'))
 
       return
     } catch (error) {
       console.error('❌ Lỗi khi chơi với pet:', error)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'played_pet',
-        message: 'Cannot played: pet not found or not active'
-      })
+      client.send(
+        MESSAGE_COLYSEUS.ACTION.RESPONSE,
+        this.createErrorResponse('Cannot played: pet not found or not active')
+      )
     }
     return
   }
 
-  // TODO: handle create poop
-  static async handleCreatePoop(poopData: PoopEvenData) {
+  private async handleCreatePoop(poopData: PoopEvenData) {
     const { sessionId, petId, positionX, positionY, room, client } = poopData
     try {
       const player = room.state.players.get(sessionId)
@@ -907,17 +758,12 @@ export class PetService {
       const pet = room.state.pets.get(petId)
 
       if (!player || !pet || pet.ownerId !== player.walletAddress) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'played_pet',
-          message: 'Cannot play with pet'
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot play with pet'))
         return
       }
 
       // TODO: Create poop in the room
-      const dbService = DatabaseService.getInstance()
-      const poopdModel = dbService.getPoopModel()
+      // Use injected poopModel directly
 
       const newPoop = new Poop()
       const petIdObject = new Types.ObjectId(petId)
@@ -926,14 +772,10 @@ export class PetService {
       newPoop.position_y = +positionY
 
       // Save to DB
-      const createdPoop = await poopdModel.create(newPoop)
+      const createdPoop = await this.poopModel.create(newPoop)
 
       if (!createdPoop) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-          success: false,
-          action: 'create_poop',
-          message: 'Cannot create poop'
-        })
+        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))
         return
       }
 
@@ -945,23 +787,143 @@ export class PetService {
 
       pet.poops.push(gamePoop)
 
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: true,
-        action: 'create_poop',
-        message: 'Created poop'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createSuccessResponse({}, 'Created poop'))
     } catch (error) {
       console.error('❌ Create poop error:', error)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, {
-        success: false,
-        action: 'create_poop',
-        message: 'Cannot create poop'
-      })
+      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))
     }
   }
 
+  // Core pet creation and management methods
+  createStarterPet(ownerId: string): Pet {
+    const starterPetId = `starter_${ownerId}_${Date.now()}`
+
+    const pet = new Pet()
+    pet.id = starterPetId
+    pet.ownerId = ownerId
+    pet.petType = GAME_CONFIG.PETS.DEFAULT_TYPE
+    pet.hunger = 100 // Full hunger
+    pet.happiness = 100 // Full happiness
+    pet.cleanliness = 100 // Full cleanliness
+    pet.lastUpdated = Date.now()
+
+    return pet
+  }
+
+  createPet(petId: string, ownerId: string, petType?: string): Pet {
+    const pet = new Pet()
+    pet.id = petId
+    pet.ownerId = ownerId
+    pet.petType = petType || GAME_CONFIG.PETS.DEFAULT_TYPE
+    pet.hunger = 100
+    pet.happiness = 100
+    pet.cleanliness = 100
+    pet.lastUpdated = Date.now()
+
+    return pet
+  }
+
+  // Update pet stats over time for a specific player (hunger, happiness, cleanliness decay)
+  updatePlayerPetStats(player: Player): void {
+    if (!player.pets) return
+
+    const now = Date.now()
+    const updateInterval = 60000 // 1 minute
+
+    player.pets.forEach((pet: Pet) => {
+      const timeSinceLastUpdate = now - pet.lastUpdated
+
+      if (timeSinceLastUpdate >= updateInterval) {
+        const hoursElapsed = timeSinceLastUpdate / (1000 * 60 * 60)
+
+        // Decay rates per hour
+        const hungerDecay = 5 // Lose 5 hunger per hour
+        const happinessDecay = 3 // Lose 3 happiness per hour
+        const cleanlinessDecay = 2 // Lose 2 cleanliness per hour
+
+        // Apply decay
+        pet.hunger = Math.max(0, pet.hunger - hungerDecay * hoursElapsed)
+        pet.happiness = Math.max(0, pet.happiness - happinessDecay * hoursElapsed)
+        pet.cleanliness = Math.max(0, pet.cleanliness - cleanlinessDecay * hoursElapsed)
+
+        pet.lastUpdated = now
+
+        console.log(
+          `📊 Pet ${pet.id} stats updated: hunger=${pet.hunger.toFixed(1)}, happiness=${pet.happiness.toFixed(1)}, cleanliness=${pet.cleanliness.toFixed(1)}`
+        )
+      }
+    })
+  }
+
+  // Update pet stats over time for all pets in room (legacy method)
+  updatePetStats(pets: MapSchema<Pet>): void {
+    const now = Date.now()
+    const updateInterval = 60000 // 1 minute
+
+    pets.forEach((pet: Pet) => {
+      const timeSinceLastUpdate = now - pet.lastUpdated
+
+      if (timeSinceLastUpdate >= updateInterval) {
+        const hoursElapsed = timeSinceLastUpdate / (1000 * 60 * 60)
+
+        // Decay rates per hour
+        const hungerDecay = 5 // Lose 5 hunger per hour
+        const happinessDecay = 3 // Lose 3 happiness per hour
+        const cleanlinessDecay = 2 // Lose 2 cleanliness per hour
+
+        // Apply decay
+        pet.hunger = Math.max(0, pet.hunger - hungerDecay * hoursElapsed)
+        pet.happiness = Math.max(0, pet.happiness - happinessDecay * hoursElapsed)
+        pet.cleanliness = Math.max(0, pet.cleanliness - cleanlinessDecay * hoursElapsed)
+
+        pet.lastUpdated = now
+
+        console.log(
+          `📊 Pet ${pet.id} stats updated: hunger=${pet.hunger.toFixed(1)}, happiness=${pet.happiness.toFixed(1)}, cleanliness=${pet.cleanliness.toFixed(1)}`
+        )
+      }
+    })
+  }
+
+  // Feed pet to increase hunger and happiness
+  feedPet(pet: Pet, foodValue: number = 20): void {
+    pet.hunger = Math.min(100, pet.hunger + foodValue)
+    pet.happiness = Math.min(100, pet.happiness + foodValue * 0.5) // Feeding also makes pet happy
+    pet.lastUpdated = Date.now()
+
+    console.log(`🍔 Pet ${pet.id} fed. Hunger: ${pet.hunger}, Happiness: ${pet.happiness}`)
+  }
+
+  // Play with pet to increase happiness
+  playWithPet(pet: Pet, playValue: number = 15): void {
+    pet.happiness = Math.min(100, pet.happiness + playValue)
+    pet.lastUpdated = Date.now()
+
+    console.log(`🎾 Played with pet ${pet.id}. Happiness: ${pet.happiness}`)
+  }
+
+  // Clean pet to increase cleanliness and happiness
+  cleanPet(pet: Pet, cleanValue: number = 25): void {
+    pet.cleanliness = Math.min(100, pet.cleanliness + cleanValue)
+    pet.happiness = Math.min(100, pet.happiness + cleanValue * 0.3) // Cleaning makes pet slightly happy
+    pet.lastUpdated = Date.now()
+
+    console.log(`🧼 Pet ${pet.id} cleaned. Cleanliness: ${pet.cleanliness}, Happiness: ${pet.happiness}`)
+  }
+
+  // Get pets owned by specific player from player state
+  getPlayerPets(player: Player): Pet[] {
+    const playerPets: Pet[] = []
+    if (player && player.pets) {
+      player.pets.forEach((pet: Pet) => {
+        playerPets.push(pet)
+      })
+    }
+    return playerPets
+  }
+
   // Get pet stats summary
-  static getPetStatsSummary(pet: Pet): GamePetStats {
+  getPetStatsSummary(pet: Pet): GamePetStats {
     return {
       id: pet.id,
       petType: pet.petType,
@@ -974,8 +936,8 @@ export class PetService {
   }
 
   // TODO: sync pets from database to player state
-  static syncPlayerPetsFromDatabase(player: Player, userPets: DBPet[]): void {
-    console.log(`🔄 [Service] Syncing ${userPets.length} pets from database for ${player.name}`)
+  syncPlayerPetsFromDatabase(player: Player, userPets: DBPet[]): void {
+    console.log(`🔄 [PetService] Syncing ${userPets.length} pets from database for ${player.name}`)
     // Initialize player pets collection if not exists
     if (!player.pets) {
       player.pets = new MapSchema<Pet>()
@@ -1017,6 +979,6 @@ export class PetService {
     // Update player's pet count
     player.totalPetsOwned = this.getPlayerPets(player).length
 
-    console.log(`✅ [Service] Synced ${player.totalPetsOwned} pets for ${player.name}`)
+    console.log(`✅ [PetService] Synced ${player.totalPetsOwned} pets for ${player.name}`)
   }
 }
