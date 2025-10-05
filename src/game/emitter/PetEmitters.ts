@@ -13,6 +13,7 @@ export class PetEmitters {
       eventBus.emit(EMITTER_EVENT_BUS.PET.BUY_PET, {
         sessionId: client.sessionId,
         petType: data.petType,
+        petTypeId: data.petTypeId,
         room,
         client,
         isBuyPet: data.isBuyPet || false // Default to false if not provided

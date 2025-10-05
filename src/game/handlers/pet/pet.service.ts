@@ -124,7 +124,7 @@ export class PetService {
       const user = await this.userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('type', 'poops').exec()
+      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('type', 'name poops').exec()
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
@@ -138,7 +138,7 @@ export class PetService {
 
         pet.id = (dbPet._id as Types.ObjectId).toString()
         pet.ownerId = walletAddress
-        pet.petType = (dbPet.type as PetType)?.name || 'chog'
+        pet.petType = (dbPet.type as PetType)?.name ?? 'chog'
         pet.hunger = dbPet.stats?.hunger ?? 50
         pet.happiness = dbPet.stats?.happiness ?? 50
         pet.cleanliness = dbPet.stats?.cleanliness ?? 50
@@ -167,10 +167,8 @@ export class PetService {
   }
 
   private async handleBuyPet(eventData: PetEventData) {
-    const { sessionId, petType, room, client, isBuyPet } = eventData
+    const { sessionId, petType, petTypeId, room, client, isBuyPet } = eventData
     const player = room.state.players.get(sessionId)
-
-    let petId: string = ''
 
     if (!player) return
 
@@ -179,6 +177,7 @@ export class PetService {
       client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Pet type not found'))
       return
     }
+    let petId: string = ''
 
     if (isBuyPet) {
       // Logic buy pet
@@ -188,24 +187,19 @@ export class PetService {
         return
       }
       try {
-        // Trừ token
-        player.tokens -= PET_PRICE
-
-        // Lưu token mới vào DB
-        // Use injected userModel directly
-        await this.userModel.updateOne(
-          { wallet_address: player.walletAddress.toLowerCase() },
-          { $inc: { token_nom: -PET_PRICE } }
-        )
-        // Tạo pet mới trong DB
-        // Use injected petModel directly
         //TODO: find by type pet ID
+        const findPetType = await this.petTypeModel.findOne({
+          _id: petTypeId
+        })
+        if (!findPetType) throw new Error('Pet type not found in DB')
+
         const user = await this.userModel.findOne({ wallet_address: player.walletAddress.toLowerCase() }).exec()
         if (!user) throw new Error('User not found in DB')
 
+        // Tạo pet trước
         const createdPetDoc = await this.petModel.create({
           owner_id: user._id,
-          type: '6869e7a0bae4412d2195d11c',
+          type: new Types.ObjectId(petTypeId),
           stats: {
             hunger: 100,
             happiness: 100,
@@ -217,6 +211,15 @@ export class PetService {
         })
         await createdPetDoc.save()
         petId = (createdPetDoc._id as Types.ObjectId).toString()
+
+        // Chỉ trừ token sau khi tạo pet thành công
+        player.tokens -= PET_PRICE
+
+        // Lưu token mới vào DB
+        await this.userModel.updateOne(
+          { wallet_address: player.walletAddress.toLowerCase() },
+          { $inc: { token_nom: -PET_PRICE } }
+        )
 
         // Lấy lại danh sách pet mới nhất từ DB
         const petsFromDb = await this.fetchPetsFromDatabase(player.walletAddress)
@@ -237,7 +240,7 @@ export class PetService {
               currentTokens: player.tokens,
               pets: petsFromDb
             },
-            'Mua pet thành công!'
+            'Buy pet successfully'
           )
         )
 
@@ -249,8 +252,10 @@ export class PetService {
         })
         console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
       } catch (err) {
-        console.error('❌ Lỗi khi mua pet:', err)
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Lỗi khi mua pet'))
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          this.createErrorResponse(err instanceof Error ? err.message : 'Fail to pet')
+        )
       }
       return
     }
@@ -261,19 +266,19 @@ export class PetService {
     const pet = this.createPet(petId, sessionId, petType)
 
     // Add pet to room state
-    room.state.pets.set(petId, pet)
+    room.state.pets.set(pet.id, pet)
 
     // Add pet to player's pets collection
     if (!player.pets) {
       player.pets = new MapSchema<Pet>()
     }
-    player.pets.set(petId, pet)
+    player.pets.set(pet.id, pet)
 
     // Update player's pet count
     player.totalPetsOwned = this.getPlayerPets(player).length
 
     room.loggingService.logStateChange('PET_CREATED', {
-      petId,
+      petId: pet.id,
       ownerId: sessionId,
       ownerName: player.name,
       petType,

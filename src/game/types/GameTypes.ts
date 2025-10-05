@@ -79,6 +79,7 @@ export interface PetEventData {
   isBuyPet?: boolean
   foodType?: string
   poopId?: string
+  petTypeId?: string
 }
 
 export interface PoopEvenData {
