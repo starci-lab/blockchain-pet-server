@@ -734,7 +734,7 @@ export class PetService {
             itemUsed: cleaningItem.name,
             cost: price,
             remainingTokens: player.tokens,
-            poopId: poopId
+            poopId
           },
           `Pet cleaned successfully! Cleanliness: ${newCleanliness}% (+${cleanlinessRestore}%). Cost: ${price} tokens`
         )
