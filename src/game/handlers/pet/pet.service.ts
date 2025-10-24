@@ -124,13 +124,18 @@ export class PetService {
       const user = await this.userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('type', 'name poops').exec()
+      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('poops').populate('type').exec()
+      console.log(
+        123123123,
+        dbPets.map((pet) => pet.poops)
+      )
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
         const gamePoops = (dbPet.poops ?? []).map((poop: PoopDocument) => {
           const gamePoop = new PetPoop()
           gamePoop.id = (poop._id as Types.ObjectId).toString()
+          gamePoop.petId = (dbPet._id as Types.ObjectId).toString()
           gamePoop.positionX = +poop.position_x
           gamePoop.positionY = +poop.position_y
           return gamePoop
@@ -778,7 +783,7 @@ export class PetService {
 
       // Save to DB
       const createdPoop = await this.poopModel.create(newPoop)
-
+      await this.petModel.findByIdAndUpdate({ _id: petId }, { $push: { poops: createdPoop._id } })
       if (!createdPoop) {
         client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))
         return
@@ -929,6 +934,7 @@ export class PetService {
 
   // Get pet stats summary
   getPetStatsSummary(pet: Pet): GamePetStats {
+    console.log('🐕 getPetStatsSummary', pet)
     return {
       id: pet.id,
       petType: pet.petType,
@@ -936,7 +942,15 @@ export class PetService {
       happiness: Math.round(pet.happiness),
       cleanliness: Math.round(pet.cleanliness),
       overallHealth: Math.round((pet.hunger + pet.happiness + pet.cleanliness) / 3),
-      lastUpdated: pet.lastUpdated
+      lastUpdated: pet.lastUpdated,
+      poops: pet.poops.map((poop) => {
+        return {
+          id: poop.id,
+          petId: poop.petId,
+          positionX: poop.positionX,
+          positionY: poop.positionY
+        }
+      })
     }
   }
 
@@ -957,8 +971,9 @@ export class PetService {
       const gamePoops = (dbPet.poops ?? []).map((poop) => {
         const gamePoop = new PetPoop()
         gamePoop.id = poop._id.toString()
-        gamePoop.positionX = +poop.position_x
-        gamePoop.positionY = +poop.position_y
+        gamePoop.petId = dbPet._id.toString()
+        gamePoop.positionX = poop.position_x != null ? +poop.position_x : 0
+        gamePoop.positionY = poop.position_y != null ? +poop.position_y : 0
         return gamePoop
       })
       pet.id = dbPet._id.toString()
@@ -980,6 +995,7 @@ export class PetService {
       pet.lastUpdated = Date.now()
       player.pets.set(pet.id, pet)
     })
+    console.log('🐕 player.pets', JSON.stringify(player.pets, null, 2))
 
     // Update player's pet count
     player.totalPetsOwned = this.getPlayerPets(player).length
