@@ -78,13 +78,13 @@ export class PetEmitters {
   }
 
   static cleanedPet(room: GameRoom) {
-    console.log('cleanedPet', room)
-    return (client: Client, data: { cleanliness_level: number; pet_id: string; owner_id: string }) => {
+    return (client: Client, data: { petId: string; cleaningItemId: string; owner_id: string; poopId: string }) => {
       // Emit event to PetService for processing
       eventBus.emit(EMITTER_EVENT_BUS.PET.CLEANED_PET, {
         sessionId: client.sessionId,
-        petId: data.pet_id,
-        cleanlinessLevel: data.cleanliness_level,
+        petId: data.petId,
+        poopId: data.poopId,
+        cleaningItemId: data.cleaningItemId,
         room,
         client
       })

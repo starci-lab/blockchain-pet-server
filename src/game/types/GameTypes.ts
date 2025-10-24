@@ -88,6 +88,7 @@ export interface PetEventData {
   foodType?: string
   poopId?: string
   petTypeId?: string
+  cleaningItemId?: string
 }
 
 export interface PoopEvenData {
