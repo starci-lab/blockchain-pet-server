@@ -1,7 +1,7 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common'
 import { InjectConnection } from '@nestjs/mongoose'
 import { Model, ClientSession, Connection } from 'mongoose'
-import { Player, InventoryItem } from '../../schemas/game-room.schema'
+import { Player, InventoryItem, PetPoop } from '../../schemas/game-room.schema'
 import { GAME_CONFIG } from '../../config/GameConfig'
 import { eventBus } from 'src/shared/even-bus'
 import { PetService } from '../pet/pet.service'
@@ -20,6 +20,15 @@ interface DatabaseUser {
   createdAt?: Date
 }
 
+interface DatabasePetPoop {
+  _id: Types.ObjectId
+  position_x: number
+  position_y: number
+  pet_id: Types.ObjectId
+  createdAt?: Date
+  updatedAt?: Date
+}
+
 interface DatabasePet {
   _id: Types.ObjectId
   name?: string
@@ -35,6 +44,7 @@ interface DatabasePet {
     last_update_cleanliness?: Date
   }
   status?: string
+  poops?: DatabasePetPoop[]
   createdAt?: Date
   updatedAt?: Date
 }
@@ -70,6 +80,7 @@ interface PetState {
   tokenIncome?: number
   totalIncome?: number
   lastClaim?: Date
+  poops?: PetPoop[]
 }
 
 interface RoomState {
@@ -294,12 +305,12 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = (await this.petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
+      const userPets = await this.petModel.find({ owner_id: user._id }).populate('type').lean<DatabasePet[]>().exec()
 
       console.log(`🐕 Found ${userPets.length} pets for user ${user.wallet_address}`)
 
       // Sync pets from database to player state
-      this.petService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
+      this.petService.syncPlayerPetsFromDatabase(player, userPets as unknown as DBPet[])
 
       // Convert user data to profile response
       const profile = {
@@ -491,14 +502,7 @@ export class PlayerService {
 
     try {
       // Get player's pets from room state
-      const roomPets: PetState[] = []
-      if (room.state.pets) {
-        room.state.pets.forEach((pet: PetState) => {
-          if (pet.ownerId === sessionId) {
-            roomPets.push(pet)
-          }
-        })
-      }
+      const roomPets = Array.from(room.state.pets?.values() ?? [])
 
       // Also get pets from player state as fallback
       const playerPets = this.petService.getPlayerPets(player)
@@ -510,12 +514,14 @@ export class PlayerService {
         `📊 Found ${allPets.length} pets for ${player.name} (${roomPets.length} from room, ${playerPets.length} from player)`
       )
 
+      console.log(`🐕 [PlayerService] Pets state: ${JSON.stringify(roomPets, null, 2)}`)
+
       // Send pets state sync
       client.send(
         MESSAGE_COLYSEUS.PET.STATE_SYNC,
         this.createSuccessResponse(
           {
-            pets: allPets.map((pet) => this.convertPetToStateFormat(pet)),
+            pets: roomPets,
             totalPets: allPets.length
           },
           'Pets state retrieved successfully'
@@ -629,7 +635,8 @@ export class PlayerService {
       try {
         console.log(`🔍 [DEBUG] Attempting to sync pets for wallet: ${addressWallet}`)
         await this.syncPlayerPetsFromDatabase(player, addressWallet)
-        console.log(`🔄 [DEBUG] Pet sync completed for ${player.name}, totalPets: ${player.totalPetsOwned}`)
+        console.log(`🔄 [DEBUG] Pets: ${JSON.stringify(player.pets, null, 2)}`)
+        console.log(`🔄 [DEBUG] Pet sync completed for ${player.name}, totalPets: ${player.totalPetsOwned}}`)
       } catch (error) {
         console.warn(`⚠️ Failed to sync pets from database:`, error)
       }
@@ -653,7 +660,7 @@ export class PlayerService {
     return player
   }
 
-  // Sync pets from database to player state during player creation
+  // TODO: Sync pets from database to player state during player creation
   async syncPlayerPetsFromDatabase(player: Player, walletAddress: string): Promise<void> {
     try {
       // Use injected models directly
@@ -671,11 +678,15 @@ export class PlayerService {
       }
 
       // Fetch user's pets from database
-      const userPets = (await this.petModel.find({ owner_id: user._id }).populate('type').exec()) as DatabasePet[]
-
+      const userPets = await this.petModel
+        .find({ owner_id: user._id })
+        .populate('type')
+        .populate('poops')
+        .lean<DBPet[]>()
+        .exec()
       if (userPets.length > 0) {
         // Use PetService to sync pets to player state
-        this.petService.syncPlayerPetsFromDatabase(player, userPets as DBPet[])
+        this.petService.syncPlayerPetsFromDatabase(player, userPets)
         console.log(`🔄 Synced ${userPets.length} pets from database for ${player.name}`)
       }
     } catch (error) {
@@ -792,40 +803,6 @@ export class PlayerService {
     })
 
     return gameInventory
-  }
-
-  // Helper method to convert pet to state format
-  private convertPetToStateFormat(pet: any): Record<string, unknown> {
-    return {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      id: pet.id as string,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      ownerId: pet.ownerId as string,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      petType: pet.petType as string,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      hunger: (pet.hunger as number) || 0,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      happiness: (pet.happiness as number) || 0,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      cleanliness: (pet.cleanliness as number) || 0,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      lastUpdated: pet.lastUpdated || new Date(),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      lastUpdateHappiness: pet.lastUpdateHappiness,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      lastUpdateHunger: pet.lastUpdateHunger,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      lastUpdateCleanliness: pet.lastUpdateCleanliness,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      isAdult: pet.isAdult,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      tokenIncome: pet.tokenIncome,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      totalIncome: pet.totalIncome,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      lastClaim: pet.lastClaim
-    }
   }
 
   // Save player data to database

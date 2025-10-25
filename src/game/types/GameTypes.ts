@@ -36,6 +36,13 @@ export interface StoreItems {
   [key: string]: StoreCategory
 }
 
+export interface PetPoop {
+  id: string
+  petId: string
+  positionX: number
+  positionY: number
+}
+
 export interface PetStats {
   id: string
   petType: string
@@ -44,6 +51,7 @@ export interface PetStats {
   cleanliness: number
   overallHealth: number
   lastUpdated: number
+  poops: Array<PetPoop>
 }
 
 export interface InventoryEventData {
@@ -80,6 +88,7 @@ export interface PetEventData {
   foodType?: string
   poopId?: string
   petTypeId?: string
+  cleaningItemId?: string
 }
 
 export interface PoopEvenData {
@@ -127,6 +136,7 @@ export interface PetType {
 
 export interface DBPetPoop {
   _id: Types.ObjectId
+  pet_id: Types.ObjectId
   position_x: number
   position_y: number
 }

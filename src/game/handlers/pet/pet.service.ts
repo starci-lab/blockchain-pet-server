@@ -17,10 +17,14 @@ import { PetType, PetTypeDocument } from 'src/api/pet/schemas/pet-type.schema'
 import { Poop, PoopDocument } from 'src/api/pet/schemas/poop.schema'
 import { User, UserDocument } from 'src/api/user/schemas/user.schema'
 import { StoreItem, StoreItemDocument } from 'src/api/store-item/schemas/store-item.schema'
+import { DatabaseService } from '../../services/DatabaseService'
 
 @Injectable()
 export class PetService {
-  constructor(@InjectConnection() private connection: Connection) {
+  constructor(
+    @InjectConnection() private connection: Connection,
+    private readonly databaseService: DatabaseService
+  ) {
     this.setupEventListeners()
   }
 
@@ -124,13 +128,14 @@ export class PetService {
       const user = await this.userModel.findOne({ wallet_address: walletAddress.toLowerCase() }).exec()
       if (!user) return []
       // Find all pets by user._id
-      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('type', 'name poops').exec()
+      const dbPets = await this.petModel.find({ owner_id: user._id }).populate('poops').populate('type').exec()
       // Convert dbPets to game Pet objects
       return dbPets.map((dbPet) => {
         const pet = new Pet()
         const gamePoops = (dbPet.poops ?? []).map((poop: PoopDocument) => {
           const gamePoop = new PetPoop()
           gamePoop.id = (poop._id as Types.ObjectId).toString()
+          gamePoop.petId = (dbPet._id as Types.ObjectId).toString()
           gamePoop.positionX = +poop.position_x
           gamePoop.positionY = +poop.position_y
           return gamePoop
@@ -572,99 +577,173 @@ export class PetService {
   }
 
   private async handleCleanedPet(eventData: PetEventData) {
-    const { sessionId, petId, room, client, cleanlinessLevel, poopId } = eventData
+    const { sessionId, petId, room, client, cleaningItemId, poopId } = eventData
+
     try {
-      const player = room.state.players.get(sessionId)
-      if (!petId) {
-        console.log(`❌ Cleaned pet failed - petId is undefined`)
+      // Validate inputs
+      if (!petId || !cleaningItemId || !poopId) {
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+          this.createErrorResponse('Missing required parameters: petId, cleaningItemId, or poopId')
+        )
         return
       }
+
+      const player = room.state.players.get(sessionId)
       const pet = room.state.pets.get(petId)
 
-      // walletAddress is used as ownerId in Pet schema
+      // Validate player and pet ownership
       if (!player || !pet || pet.ownerId !== player.walletAddress) {
-        console.log(`❌ Cleaned pet failed - invalid player/pet or ownership`)
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot cleaned pet'))
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+          this.createErrorResponse('Cannot clean pet (invalid player or ownership)')
+        )
         return
       }
 
       // Check if pet cleanliness is allowed to clean
       if (pet.cleanliness > GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN) {
         client.send(
-          MESSAGE_COLYSEUS.ACTION.RESPONSE,
-          this.createErrorResponse('Cannot cleaned: pet cleanliness is full')
+          MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+          this.createErrorResponse(
+            `Pet is already clean (${pet.cleanliness}%). Clean when below ${GAME_CONFIG.PETS.CLEANLINESS_ALLOW_CLEAN}%`
+          )
         )
         return
       }
 
-      // Increase cleanliness level
-      let cleanliness = +pet.cleanliness + Number(cleanlinessLevel)
-      if (cleanliness > 100) {
-        cleanliness = 100
+      // Get cleanliness restore value
+      const cleaningItem = await this.storeItemModel.findById(cleaningItemId)
+      if (!cleaningItem) {
+        console.log(`❌ Cleaning item ${cleaningItemId} not found in database`)
+        client.send(MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE, this.createErrorResponse('Invalid cleaning item'))
+        return
       }
 
-      // Update colesyus state
-      pet.cleanliness = cleanliness
+      // Verify poop exists on pet
+      const poopExists = pet.poops.some((poop) => poop.id === poopId)
+      if (!poopExists) {
+        console.log(`Poop ${poopId} not found on pet ${petId}`)
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+          this.createErrorResponse('Poop not found on this pet')
+        )
+        return
+      }
 
-      // remove poop from pet poops array
-      pet.poops = pet.poops.filter((poop) => poop.id !== poopId)
+      // Calculate new cleanliness level (cap at 100)
+      const cleanlinessRestore = cleaningItem.effect.cleanliness ?? 0
+      const newCleanliness = Math.min(pet.cleanliness + (cleanlinessRestore ?? 0), GAME_CONFIG.PETS.CLEANLINESS_MAX)
 
+      // Update Colyseus state - Pet
+      pet.cleanliness = newCleanliness
+      pet.lastUpdateCleanliness = new Date().toISOString()
       pet.lastUpdated = Date.now()
 
-      // Update colesyus player pets collection
+      // Remove poop from pet's poops array
+      pet.poops = pet.poops.filter((poop) => poop.id !== poopId)
+
+      // Update Colyseus state - Player's pet reference
       if (player.pets && player.pets.has(petId)) {
-        // TODO: Check if pet is active or no ????
         const playerPet = player.pets.get(petId)
         if (playerPet) {
-          playerPet.cleanliness = cleanliness
+          playerPet.cleanliness = newCleanliness
+          playerPet.lastUpdateCleanliness = pet.lastUpdateCleanliness
           playerPet.lastUpdated = Date.now()
+          playerPet.poops = playerPet.poops.filter((poop) => poop.id !== poopId)
         }
       }
 
-      // Update colesyus room state
-      if (room.state.pets.has(petId)) {
-        room.state.pets.set(petId, pet)
-      }
+      const price = cleaningItem.cost_nom
 
-      // Update DB
-      // Use injected models directly
-
-      const [updatedPet, deletedPoop] = await Promise.all([
-        this.petModel.findByIdAndUpdate(
-          {
-            _id: petId,
-            status: PetStatus.Active
-          },
-          {
-            $set: {
-              'stats.cleanliness': cleanliness
-            }
-          },
-          {
-            new: true
-          }
-        ),
-        this.poopModel.findByIdAndDelete({
-          _id: poopId as string
-        })
-      ])
-
-      if (!updatedPet || !deletedPoop) {
+      // Check if player has enough tokens
+      if (player.tokens < price) {
         client.send(
-          MESSAGE_COLYSEUS.ACTION.RESPONSE,
-          this.createErrorResponse('Cannot cleaned: pet not found or not active')
+          MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+          this.createErrorResponse(`Not enough tokens. Need ${price}, have ${player.tokens}`)
         )
         return
       }
 
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createSuccessResponse({}, 'Cleaned pet'))
+      // Deduct tokens from player state
+      player.tokens -= price
 
-      return
-    } catch (error) {
-      console.error('❌ pet cleaned error:', error)
+      // Update database
+      const result = await this.databaseService.withTransaction(async (session) => {
+        const petModel = this.databaseService.getPetModel()
+        const poopModel = this.databaseService.getPoopModel()
+        const userModel = this.databaseService.getUserModel()
+
+        const updatedPet = await petModel.findByIdAndUpdate(
+          petId,
+          {
+            $set: {
+              'stats.cleanliness': newCleanliness,
+              'stats.last_update_cleanliness': new Date()
+            },
+            $pull: { poops: poopId }
+          },
+          { new: true, session }
+        )
+
+        const deletedPoop = await poopModel.findByIdAndDelete(poopId, { session })
+
+        const updatedPlayer = await userModel.findOneAndUpdate(
+          { wallet_address: player.walletAddress.toLowerCase() },
+          { $inc: { token_nom: -price } },
+          { new: true, session }
+        )
+        return { updatedPet, deletedPoop, updatedPlayer }
+      })
+      if (!result.updatedPet) {
+        console.error(`❌ Failed to update pet ${petId} in database`)
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+          this.createErrorResponse('Failed to update pet in database')
+        )
+        return
+      }
+
+      if (!result.deletedPoop) {
+        console.warn(`⚠️ Poop ${poopId} not found in database (already deleted?)`)
+      }
+
+      if (!result.updatedPlayer) {
+        console.error(`❌ Failed to update player ${player.walletAddress} in database`)
+        client.send(
+          MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+          this.createErrorResponse('Failed to update player in database')
+        )
+        return
+      }
+
+      // Save inventory to database via event bus
+      eventBus.emit('player.save_inventory', { player, walletAddress: player.walletAddress })
+
+      console.log(
+        `🧼 Pet ${petId} cleaned with ${cleaningItem.name}. Cleanliness: ${newCleanliness}% (+${cleanlinessRestore}%). Poop ${poopId} removed. Cost: ${price} tokens.`
+      )
+
       client.send(
-        MESSAGE_COLYSEUS.ACTION.RESPONSE,
-        this.createErrorResponse('Cannot cleaned: pet not found or not active')
+        MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+        this.createSuccessResponse(
+          {
+            petId,
+            cleanliness: newCleanliness,
+            cleanlinessRestored: cleanlinessRestore,
+            itemUsed: cleaningItem.name,
+            cost: price,
+            remainingTokens: player.tokens,
+            poopId
+          },
+          `Pet cleaned successfully! Cleanliness: ${newCleanliness}% (+${cleanlinessRestore}%). Cost: ${price} tokens`
+        )
+      )
+    } catch (error) {
+      console.error('❌ Pet cleaned error:', error)
+      client.send(
+        MESSAGE_COLYSEUS.ACTION.CLEANED_PET_RESPONSE,
+        this.createErrorResponse('An error occurred while cleaning the pet')
       )
     }
   }
@@ -763,7 +842,7 @@ export class PetService {
       const pet = room.state.pets.get(petId)
 
       if (!player || !pet || pet.ownerId !== player.walletAddress) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot play with pet'))
+        client.send(MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE, this.createErrorResponse('Cannot play with pet'))
         return
       }
 
@@ -778,24 +857,36 @@ export class PetService {
 
       // Save to DB
       const createdPoop = await this.poopModel.create(newPoop)
-
+      await this.petModel.findByIdAndUpdate({ _id: petId }, { $push: { poops: createdPoop._id } })
       if (!createdPoop) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))
+        client.send(MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE, this.createErrorResponse('Cannot create poop'))
         return
       }
-
+      
+      const poopId = (createdPoop._id as Types.ObjectId).toString()
       // handle update pet state
       const gamePoop = new PetPoop()
-      gamePoop.id = createdPoop._id as string
+      gamePoop.id = poopId
       gamePoop.positionX = +positionX
       gamePoop.positionY = +positionY
 
       pet.poops.push(gamePoop)
 
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createSuccessResponse({}, 'Created poop'))
+      client.send(
+        MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE,
+        this.createSuccessResponse(
+          {
+            poopId: createdPoop._id as string,
+            petId: petId,
+            positionX: +positionX,
+            positionY: +positionY
+          },
+          'Created poop'
+        )
+      )
     } catch (error) {
       console.error('❌ Create poop error:', error)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))
+      client.send(MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE, this.createErrorResponse('Cannot create poop'))
     }
   }
 
@@ -929,6 +1020,7 @@ export class PetService {
 
   // Get pet stats summary
   getPetStatsSummary(pet: Pet): GamePetStats {
+    console.log('🐕 getPetStatsSummary', pet)
     return {
       id: pet.id,
       petType: pet.petType,
@@ -936,7 +1028,15 @@ export class PetService {
       happiness: Math.round(pet.happiness),
       cleanliness: Math.round(pet.cleanliness),
       overallHealth: Math.round((pet.hunger + pet.happiness + pet.cleanliness) / 3),
-      lastUpdated: pet.lastUpdated
+      lastUpdated: pet.lastUpdated,
+      poops: pet.poops.map((poop) => {
+        return {
+          id: poop.id,
+          petId: poop.petId,
+          positionX: poop.positionX,
+          positionY: poop.positionY
+        }
+      })
     }
   }
 
@@ -957,8 +1057,9 @@ export class PetService {
       const gamePoops = (dbPet.poops ?? []).map((poop) => {
         const gamePoop = new PetPoop()
         gamePoop.id = poop._id.toString()
-        gamePoop.positionX = +poop.position_x
-        gamePoop.positionY = +poop.position_y
+        gamePoop.petId = dbPet._id.toString()
+        gamePoop.positionX = poop.position_x != null ? +poop.position_x : 0
+        gamePoop.positionY = poop.position_y != null ? +poop.position_y : 0
         return gamePoop
       })
       pet.id = dbPet._id.toString()
@@ -980,6 +1081,7 @@ export class PetService {
       pet.lastUpdated = Date.now()
       player.pets.set(pet.id, pet)
     })
+    console.log('🐕 player.pets', JSON.stringify(player.pets, null, 2))
 
     // Update player's pet count
     player.totalPetsOwned = this.getPlayerPets(player).length

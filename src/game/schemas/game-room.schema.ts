@@ -3,6 +3,7 @@ import { Schema, type, MapSchema } from '@colyseus/schema'
 // Poop schema
 export class PetPoop extends Schema {
   @type('string') id: string = ''
+  @type('string') petId: string = ''
   @type('number') positionX: number = 0
   @type('number') positionY: number = 0
 
@@ -38,7 +39,6 @@ export class Pet extends Schema {
   @type('string') lastClaim: string = '' // last claim
 
   @type({ array: PetPoop }) poops: Array<PetPoop> = []
-
   constructor() {
     super()
     this.lastUpdated = Date.now()
