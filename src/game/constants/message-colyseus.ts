@@ -17,6 +17,7 @@ export const MESSAGE_COLYSEUS = {
     BUY_FOOD_RESPONSE: 'buy_food_response',
     REMOVE_PET_RESPONSE: 'remove_pet_response',
     BUY_PET_RESPONSE: 'buy_pet_response',
-    CLEANED_PET_RESPONSE: 'cleaned_pet_response'
+    CLEANED_PET_RESPONSE: 'cleaned_pet_response',
+    CREATE_POOP_RESPONSE: 'create_poop_response'
   }
 }

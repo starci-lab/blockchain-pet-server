@@ -842,7 +842,7 @@ export class PetService {
       const pet = room.state.pets.get(petId)
 
       if (!player || !pet || pet.ownerId !== player.walletAddress) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot play with pet'))
+        client.send(MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE, this.createErrorResponse('Cannot play with pet'))
         return
       }
 
@@ -859,22 +859,34 @@ export class PetService {
       const createdPoop = await this.poopModel.create(newPoop)
       await this.petModel.findByIdAndUpdate({ _id: petId }, { $push: { poops: createdPoop._id } })
       if (!createdPoop) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))
+        client.send(MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE, this.createErrorResponse('Cannot create poop'))
         return
       }
-
+      
+      const poopId = (createdPoop._id as Types.ObjectId).toString()
       // handle update pet state
       const gamePoop = new PetPoop()
-      gamePoop.id = createdPoop._id as string
+      gamePoop.id = poopId
       gamePoop.positionX = +positionX
       gamePoop.positionY = +positionY
 
       pet.poops.push(gamePoop)
 
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createSuccessResponse({}, 'Created poop'))
+      client.send(
+        MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE,
+        this.createSuccessResponse(
+          {
+            poopId: createdPoop._id as string,
+            petId: petId,
+            positionX: +positionX,
+            positionY: +positionY
+          },
+          'Created poop'
+        )
+      )
     } catch (error) {
       console.error('❌ Create poop error:', error)
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Cannot create poop'))
+      client.send(MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE, this.createErrorResponse('Cannot create poop'))
     }
   }
 
