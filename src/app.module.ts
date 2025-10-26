@@ -28,7 +28,7 @@ import { QUEUE_NAME } from './bull/constants/queue.constant';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('MONGO_URI'),
-      }),
+      }), 
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
