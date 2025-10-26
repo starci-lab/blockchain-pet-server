@@ -21,35 +21,48 @@ export class LoggingService {
   }
 
   logCurrentState() {
-    console.log(`📊 [CURRENT STATE] Room ${this.room.roomId}:`, {
-      timestamp: new Date().toISOString(),
-      roomName: this.room.state.roomName,
-      playerCount: this.room.state.playerCount,
-      players: Array.from(this.room.state.players.entries()).map(([id, player]) => ({
-        sessionId: id,
-        name: player.name,
-        tokens: player.tokens
-      })),
-      pets: Array.from(this.room.state.pets.entries()).map(([id, pet]) => ({
-        id,
-        ownerId: pet.ownerId,
-        petType: pet.petType,
-        hunger: pet.hunger,
-        happiness: pet.happiness,
-        cleanliness: pet.cleanliness,
-        lastUpdated: pet.lastUpdated,
-        lastUpdateHappiness: pet.lastUpdateHappiness,
-        lastUpdateHunger: pet.lastUpdateHunger,
-        lastUpdateCleanliness: pet.lastUpdateCleanliness,
-        isAdult: pet.isAdult,
-        birthTime: pet.birthTime,
-        growthDuration: pet.growthDuration,
-        incomeCycleTime: pet.incomeCycleTime,
-        incomePerCycle: pet.incomePerCycle,
-        totalIncome: pet.incomePerCycle,
-        lastClaim: pet.lastClaim
-      }))
-    })
+    console.log(
+      `📊 [CURRENT STATE] Room ${this.room.roomId}:`,
+      JSON.stringify(
+        {
+          timestamp: new Date().toISOString(),
+          roomName: this.room.state.roomName,
+          playerCount: this.room.state.playerCount,
+          players: Array.from(this.room.state.players.entries()).map(([id, player]) => ({
+            sessionId: id,
+            name: player.name,
+            tokens: player.tokens
+          })),
+          pets: Array.from(this.room.state.pets.entries()).map(([id, pet]) => ({
+            id,
+            ownerId: pet.ownerId,
+            petType: pet.petType,
+            hunger: pet.hunger,
+            happiness: pet.happiness,
+            cleanliness: pet.cleanliness,
+            lastUpdated: pet.lastUpdated,
+            lastUpdateHappiness: pet.lastUpdateHappiness,
+            lastUpdateHunger: pet.lastUpdateHunger,
+            lastUpdateCleanliness: pet.lastUpdateCleanliness,
+            isAdult: pet.isAdult,
+            birthTime: pet.birthTime,
+            growthDuration: pet.growthDuration,
+            incomeCycleTime: pet.incomeCycleTime,
+            incomePerCycle: pet.incomePerCycle,
+            totalIncome: pet.incomePerCycle,
+            lastClaim: pet.lastClaim,
+            poops: pet.poops.map((poop) => ({
+              id: poop.id,
+              petId: poop.petId,
+              positionX: poop.positionX,
+              positionY: poop.positionY
+            }))
+          }))
+        },
+        null,
+        2
+      )
+    )
   }
 
   logRoomCreated() {

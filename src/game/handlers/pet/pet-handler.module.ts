@@ -6,6 +6,7 @@ import { Pet, PetSchema } from 'src/api/pet/schemas/pet.schema'
 import { PetType, PetTypeSchema } from 'src/api/pet/schemas/pet-type.schema'
 import { StoreItem, StoreItemSchema } from 'src/api/store-item/schemas/store-item.schema'
 import { Poop, PoopSchema } from 'src/api/pet/schemas/poop.schema'
+import { DatabaseService } from 'src/game/services/DatabaseService'
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { Poop, PoopSchema } from 'src/api/pet/schemas/poop.schema'
       { name: Poop.name, schema: PoopSchema }
     ])
   ],
-  providers: [PetService],
-  exports: [PetService]
+  providers: [PetService, DatabaseService],
+  exports: [PetService, DatabaseService]
 })
 export class PetHandlerModule {}
