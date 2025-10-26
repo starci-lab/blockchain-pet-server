@@ -1,48 +1,24 @@
 version: '3.8'
 
 services:
-  mongodb:
-    image: mongo:6
-    container_name: ci_pet_mongodb
-    restart: unless-stopped
-    ports:
-      - '27017:27017'
-    environment:
-      MONGO_INITDB_DATABASE: nestcolyseus
-    volumes:
-      - mongo_data:/data/db
-    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
-    networks:
-      - colyseus-network
-
-  redis:
-    image: redis:7
-    container_name: ci_pet_redis
-    restart: unless-stopped
-    ports:
-      - '6379:6379'
-    networks:
-      - colyseus-network
-
   app:
     build: .
     container_name: ci_pet_app
-    restart: unless-stopped
-    env_file:
-      - .env
     ports:
       - '3001:3001'
-      - '3002:3002'
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - colyseus-network
-
-volumes:
-  redis_data:
-  mongo_data:
-
-networks:
-  colyseus-network:
-    driver: bridge
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      NEST_PORT: ${NEST_PORT}
+      COLYSEUS_PORT: ${COLYSEUS_PORT}
+      ENABLE_REDIS: ${ENABLE_REDIS}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      MONGO_URI: ${MONGO_URI}
+      COLYSEUS_PING_INTERVAL: ${COLYSEUS_PING_INTERVAL}
+      COLYSEUS_PING_MAX_RETRIES: ${COLYSEUS_PING_MAX_RETRIES}
+      AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET}
+      AUTH_REFRESH_SECRET: ${AUTH_REFRESH_SECRET}
+      AUTH_ACCESS_TOKEN_EXPIRES_IN: ${AUTH_ACCESS_TOKEN_EXPIRES_IN}
+      AUTH_REFRESH_TOKEN_EXPIRES_IN: ${AUTH_REFRESH_TOKEN_EXPIRES_IN}

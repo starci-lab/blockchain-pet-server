@@ -1,0 +1,37 @@
+name: Build and Run with Docker Compose
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build-and-run:
+    runs-on: self-hosted
+    env:
+      # ====== Non-sensitive config (Vars) ======
+      NODE_ENV: ${{ vars.NODE_ENV }}
+      NEST_PORT: ${{ vars.NEST_PORT }}
+      COLYSEUS_PORT: ${{ vars.COLYSEUS_PORT }}
+      ENABLE_REDIS: ${{ vars.ENABLE_REDIS }}
+      REDIS_HOST: ${{ vars.REDIS_HOST }}
+      REDIS_PORT: ${{ vars.REDIS_PORT }}
+      REDIS_DB: ${{ vars.REDIS_DB }}
+      COLYSEUS_PING_INTERVAL: ${{ vars.COLYSEUS_PING_INTERVAL }}
+      COLYSEUS_PING_MAX_RETRIES: ${{ vars.COLYSEUS_PING_MAX_RETRIES }}
+      AUTH_ACCESS_TOKEN_EXPIRES_IN: ${{ vars.AUTH_ACCESS_TOKEN_EXPIRES_IN }}
+      AUTH_REFRESH_TOKEN_EXPIRES_IN: ${{ vars.AUTH_REFRESH_TOKEN_EXPIRES_IN }}
+    
+      MONGO_URI: ${{ secrets.MONGO_URI }}
+      AUTH_ACCESS_SECRET: ${{ secrets.AUTH_ACCESS_SECRET }}
+      AUTH_REFRESH_SECRET: ${{ secrets.AUTH_REFRESH_SECRET }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Build and run Docker Compose
+        run: |
+          docker compose down --remove-orphans
+          docker compose up -d --build
+
+      - name: List running containers
+        run: docker ps
