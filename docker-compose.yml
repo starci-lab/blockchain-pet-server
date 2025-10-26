@@ -6,6 +6,7 @@ services:
     container_name: ci_pet_app
     ports:
       - '3001:3001'
+      - '3002:3002'
     environment:
       NODE_ENV: ${NODE_ENV}
       NEST_PORT: ${NEST_PORT}
