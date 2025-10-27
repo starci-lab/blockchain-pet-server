@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: ci_pet_mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_DATABASE: nestcolyseus
+    volumes:
+      - mongo_data:/data/db
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
+    networks:
+      - colyseus-network
+
+  redis:
+    image: redis:7
+    container_name: ci_pet_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    networks:
+      - colyseus-network
+
+  app:
+    build: .
+    container_name: ci_pet_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - '3001:3001'
+      - '3002:3002'
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - colyseus-network
+
+volumes:
+  redis_data:
+  mongo_data:
+
+networks:
+  colyseus-network:
+    driver: bridge
