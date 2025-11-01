@@ -154,16 +154,12 @@ export class GameRoom extends Room<GameRoomState> {
 
       await this.handleNewPlayerPets(client, fallbackPlayer)
       this.sendWelcomeMessage(client, fallbackPlayer)
-
-      console.log(`⚠️ Created fallback player for ${client.sessionId}`)
     }
   }
 
   private async handleNewPlayerPets(client: Client, player: Player) {
-    console.log('🐾 Handling new player pets for:', player.name)
     try {
       const petsFromDb = await this.petService.fetchPetsFromDatabase(player.walletAddress)
-      console.log(`🐾 Found ${petsFromDb.length} pets for ${player.name} in DB`)
       if (!player.pets) {
         player.pets = new MapSchema<Pet>()
       } else {
