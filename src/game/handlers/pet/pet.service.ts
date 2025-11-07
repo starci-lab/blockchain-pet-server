@@ -179,7 +179,7 @@ export class PetService {
 
     // Check if petType is valid
     if (!petType) {
-      client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Pet type not found'))
+      client.send(MESSAGE_COLYSEUS.ACTION.BUY_PET_RESPONSE, this.createErrorResponse('Pet type not found'))
       return
     }
     let petId: string = ''
@@ -188,7 +188,7 @@ export class PetService {
       // Logic buy pet
       const PET_PRICE = 50
       if (typeof player.tokens !== 'number' || player.tokens < PET_PRICE) {
-        client.send(MESSAGE_COLYSEUS.ACTION.RESPONSE, this.createErrorResponse('Not enough tokens'))
+        client.send(MESSAGE_COLYSEUS.ACTION.BUY_PET_RESPONSE, this.createErrorResponse('Not enough tokens'))
         return
       }
       try {
@@ -239,7 +239,7 @@ export class PetService {
 
         // Gửi response về client
         client.send(
-          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          MESSAGE_COLYSEUS.ACTION.BUY_PET_RESPONSE,
           this.createSuccessResponse(
             {
               currentTokens: player.tokens,
@@ -258,7 +258,7 @@ export class PetService {
         console.log(`✅ Player ${player.name} mua pet thành công. Token còn lại: ${player.tokens}`)
       } catch (err) {
         client.send(
-          MESSAGE_COLYSEUS.ACTION.RESPONSE,
+          MESSAGE_COLYSEUS.ACTION.BUY_PET_RESPONSE,
           this.createErrorResponse(err instanceof Error ? err.message : 'Fail to pet')
         )
       }
@@ -862,7 +862,7 @@ export class PetService {
         client.send(MESSAGE_COLYSEUS.ACTION.CREATE_POOP_RESPONSE, this.createErrorResponse('Cannot create poop'))
         return
       }
-      
+
       const poopId = (createdPoop._id as Types.ObjectId).toString()
       // handle update pet state
       const gamePoop = new PetPoop()
